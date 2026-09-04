@@ -92,8 +92,8 @@
       </div>
 
       <div class="form-group">
-        <label for="date">預約日期</label>
-        <input type="date" id="date" required onchange="generateTimeButtons()">
+        <label for="date">預約日期 <span class="hint-text">(僅開放工作天，國定假日不開放)</span></label>
+        <input type="date" id="date" required onchange="handleDateChange()">
       </div>
       <div class="form-group">
         <label>選擇可預約時段 (08:00 - 22:00) <div class="hint-text">💡 已隱藏過期與已被預約時段</div></label>
@@ -150,7 +150,17 @@
 
   let selectedTimeSlots = [];
   let rawGroupedBookings = [];
-  let bookedSlotsSet = new Set(); // 儲存已被預約的「日期_時段」
+  let bookedSlotsSet = new Set();
+  
+  // 台灣國定假日與補班日快取 (格式：{ '2026-01-01': { isHoliday: true, description: '元旦' } })
+  let holidayMap = {};
+
+  function formatDateToString(d) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
 
   function formatDateString(rawDateStr) {
     if (!rawDateStr) return '';
@@ -166,25 +176,96 @@
 
     const d = new Date(str);
     if (!isNaN(d.getTime())) {
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, '0');
-      const dd = String(d.getDate()).padStart(2, '0');
-      return `${yyyy}-${mm}-${dd}`;
+      return formatDateToString(d);
     }
 
     return str;
   }
 
-  function initDatePicker() {
+  // 載入台灣行政院人事行政總處行事曆 API
+  async function fetchTaiwanHolidays() {
+    try {
+      const currentYear = new Date().getFullYear();
+      // 使用開放社群維護的台灣國定假日 API (支援跨年份)
+      const res = await fetch(`https://cdn.jsdelivr.net/gh/wanasit/taiwan-calendar/data/${currentYear}.json`);
+      if (res.ok) {
+        const data = await res.json();
+        data.forEach(item => {
+          // 格式化日期為 YYYY-MM-DD
+          const formattedDate = `${item.date.substring(0,4)}-${item.date.substring(4,6)}-${item.date.substring(6,8)}`;
+          holidayMap[formattedDate] = {
+            isHoliday: item.isHoliday,
+            description: item.description || (item.isHoliday ? '國定假日' : '補班日')
+          };
+        });
+      }
+    } catch (e) {
+      console.warn("國定假日 API 載入失敗，退回基本週六日判斷", e);
+    }
+  }
+
+  // 判斷某一天是否為「工作天/需上班日」
+  function isWorkday(dateObj) {
+    const dateStr = formatDateToString(dateObj);
+    const day = dateObj.getDay(); // 0 是週日, 6 是週六
+
+    // 若 API 資料庫中有紀錄
+    if (holidayMap[dateStr]) {
+      // isHoliday 為 false 代表是補班日（即便是六日也要上班）
+      // isHoliday 為 true 代表是放假（包含國定假日與彈性放假）
+      return !holidayMap[dateStr].isHoliday;
+    }
+
+    // 若 API 無紀錄（例如非當年資料），退回預設：週一至週五為工作天
+    return day !== 0 && day !== 6;
+  }
+
+  // 自動找出下一個「可預約的工作天」
+  function getNextWorkingDay(dateObj) {
+    const d = new Date(dateObj);
+    while (!isWorkday(d)) {
+      d.setDate(d.getDate() + 1);
+    }
+    return d;
+  }
+
+  async function initDatePicker() {
+    await fetchTaiwanHolidays(); // 先載入國定假日資料
+
     const dateInput = document.getElementById('date');
     const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const minDateStr = `${yyyy}-${mm}-${dd}`;
     
-    dateInput.min = minDateStr;
-    dateInput.value = minDateStr;
+    // 最小可選日期設為今天
+    dateInput.min = formatDateToString(today);
+
+    // 預設選擇日期若遇假日/國定假日則自動順延至下一個工作天
+    const validDefaultDate = getNextWorkingDay(today);
+    dateInput.value = formatDateToString(validDefaultDate);
+
+    generateTimeButtons();
+  }
+
+  // 當使用者變更日期時檢查是否為假日/國定假日
+  function handleDateChange() {
+    const dateInput = document.getElementById('date');
+    if (!dateInput.value) return;
+
+    const selectedDate = new Date(dateInput.value + "T00:00:00");
+    const dateStr = dateInput.value;
+
+    if (!isWorkday(selectedDate)) {
+      let holidayName = "例假日/國定假日";
+      if (holidayMap[dateStr] && holidayMap[dateStr].description) {
+        holidayName = holidayMap[dateStr].description;
+      }
+      
+      alert(`⚠️ 您選擇的日期 (${dateStr}) 為「${holidayName}」，不開放預約！\n已為您自動調整至下一個工作天。`);
+      
+      const nextWorkday = getNextWorkingDay(selectedDate);
+      dateInput.value = formatDateToString(nextWorkday);
+    }
+
+    generateTimeButtons();
   }
 
   function generateTimeButtons() {
@@ -195,7 +276,7 @@
     const selectedDateVal = document.getElementById('date').value;
     const now = new Date();
     
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const todayStr = formatDateToString(now);
     const isToday = selectedDateVal === todayStr;
     const currentHour = now.getHours();
 
@@ -265,7 +346,6 @@
 
       const activeBookings = data.filter(item => item.status === '已預約');
 
-      // 更新全域已預約集合
       bookedSlotsSet.clear();
       activeBookings.forEach(item => {
         const cleanDate = formatDateString(item.date);
@@ -302,7 +382,7 @@
       });
 
       const now = new Date();
-      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const todayStr = formatDateToString(now);
 
       rawGroupedBookings = Array.from(groupedMap.values()).sort((a, b) => {
         const isAUpcoming = a.date >= todayStr;
@@ -322,7 +402,7 @@
       const uniqueDates = Array.from(new Set(rawGroupedBookings.map(item => item.date)));
       updateDateSelectOptions(uniqueDates);
       renderBookingList();
-      generateTimeButtons(); // 重新整理按鈕，濾掉剛下載下來的已被預約時段
+      generateTimeButtons();
     };
 
     const script = document.createElement('script');
@@ -505,6 +585,7 @@
     return String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
+  // 初始化
   initDatePicker();
   fetchBookings();
 </script>
