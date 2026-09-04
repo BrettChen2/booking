@@ -20,8 +20,9 @@
     /* 時段按鈕網格樣式 */
     .time-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-top: 5px; }
     .time-btn { background-color: #ffffff; color: #24292f; border: 1px solid #d0d7de; padding: 8px 4px; font-size: 0.85rem; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.2s ease; }
-    .time-btn:hover { background-color: #f3f4f6; border-color: #0969da; }
+    .time-btn:hover:not(:disabled) { background-color: #f3f4f6; border-color: #0969da; }
     .time-btn.selected { background-color: #0969da; color: #ffffff; border-color: #0969da; font-weight: 600; }
+    .time-btn:disabled { background-color: #f3f4f6; color: #8c959f; border-color: #d0d7de; cursor: not-allowed; opacity: 0.6; text-decoration: line-through; }
 
     /* 按鈕樣式 */
     .btn-submit { width: 100%; padding: 10px; font-size: 1rem; border: none; border-radius: 6px; background-color: #2da44e; color: white; font-weight: 600; cursor: pointer; margin-top: 10px; }
@@ -41,7 +42,6 @@
     .booking-info { font-size: 0.9rem; }
     .booking-info strong { font-size: 1rem; color: #0969da; }
     .status-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: #2da44e; color: white; white-space: nowrap; }
-    .status-badge.cancelled { background: #8c959f; }
   </style>
 </head>
 <body>
@@ -63,7 +63,7 @@
       </div>
       <div class="form-group">
         <label for="date">預約日期</label>
-        <input type="date" id="date" required>
+        <input type="date" id="date" required onchange="generateTimeButtons()">
       </div>
       <div class="form-group">
         <label>選擇時段 (08:00 - 22:00)</label>
@@ -89,7 +89,7 @@
 
   <!-- 右側：即時預約清單 -->
   <div class="right-panel card">
-    <h2>即時預約狀態清單</h2>
+    <h2>預約狀態清單 (僅顯示有效預約)</h2>
     <ul class="booking-list" id="booking-list">
       <li style="text-align:center; color:#57606a;">載入資料中...</li>
     </ul>
@@ -97,28 +97,59 @@
 </div>
 
 <script>
-  // 已更新為最新版的 GAS URL
   const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxgHeRHyODH2ZFzvCc4LpUwmq8OI7KzUxNDuN1P57Zw382nd1KGRu_f177lKiWHDIZgaA/exec";
 
   let selectedTimeSlot = "";
 
-  // 生成 08:00 到 22:00 時段按鈕
+  // 初始化日期輸入框：限制最小可選日期為今日，預設選擇今日
+  function initDatePicker() {
+    const dateInput = document.getElementById('date');
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    const minDateStr = `${yyyy}-${mm}-${dd}`;
+    
+    dateInput.min = minDateStr;
+    dateInput.value = minDateStr;
+  }
+
+  // 生成時段按鈕，並停用過去的時間
   function generateTimeButtons() {
     const grid = document.getElementById('time-grid');
     grid.innerHTML = "";
+    selectedTimeSlot = "";
+    
+    const selectedDateVal = document.getElementById('date').value;
+    const now = new Date();
+    
+    // 取得今天 Date 物件 (時間設為 00:00:00)
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const isToday = selectedDateVal === todayStr;
+    const currentHour = now.getHours();
+
     for (let hour = 8; hour < 22; hour++) {
       const start = hour.toString().padStart(2, '0') + ":00";
       const end = (hour + 1).toString().padStart(2, '0') + ":00";
       const slot = `${start} - ${end}`;
+      
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'time-btn';
       btn.innerText = slot;
-      btn.onclick = () => {
-        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        selectedTimeSlot = slot;
-      };
+
+      // 如果選擇的是今天，且該時段的起始時間已過（小於或等於當前小時），則停用按鈕
+      if (isToday && hour <= currentHour) {
+        btn.disabled = true;
+        btn.title = "此時段已過，無法預約";
+      } else {
+        btn.onclick = () => {
+          document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          selectedTimeSlot = slot;
+        };
+      }
+      
       grid.appendChild(btn);
     }
   }
@@ -132,7 +163,7 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
   }
 
-  // 使用 JSONP 讀取即時預約清單，繞過跨網域限制
+  // 讀取預約清單：僅顯示「已預約」（自動過濾掉「已取消」）
   function fetchBookings() {
     const listEl = document.getElementById('booking-list');
     const callbackName = 'handleGasResponse_' + Math.floor(Math.random() * 100000);
@@ -142,13 +173,21 @@
       document.body.removeChild(script);
       listEl.innerHTML = "";
 
-      if (!Array.isArray(data) || data.length === 0) {
-        listEl.innerHTML = "<li style='text-align:center;'>目前尚無預約紀錄</li>";
+      if (!Array.isArray(data)) {
+        listEl.innerHTML = "<li style='text-align:center;'>資料讀取異常</li>";
         return;
       }
 
-      data.slice().reverse().forEach(item => {
-        const isCancelled = item.status === '已取消';
+      // 過濾出未取消的預約（狀態為「已預約」）
+      const activeBookings = data.filter(item => item.status === '已預約');
+
+      if (activeBookings.length === 0) {
+        listEl.innerHTML = "<li style='text-align:center;'>目前尚無有效預約紀錄</li>";
+        return;
+      }
+
+      // 由新到舊排序顯示
+      activeBookings.slice().reverse().forEach(item => {
         const li = document.createElement('li');
         li.className = 'booking-item';
         li.innerHTML = `
@@ -156,7 +195,7 @@
             <strong>${escapeHtml(item.name)}</strong> (編號: ${escapeHtml(item.id)})<br>
             <small style="color: #57606a;">${escapeHtml(item.date)} | ${escapeHtml(item.time)}</small>
           </div>
-          <span class="status-badge ${isCancelled ? 'cancelled' : ''}">
+          <span class="status-badge">
             ${escapeHtml(item.status)}
           </span>
         `;
@@ -167,7 +206,7 @@
     const script = document.createElement('script');
     script.src = `${GAS_API_URL}?callback=${callbackName}`;
     script.onerror = function() {
-      listEl.innerHTML = "<li style='text-align:center; color:red;'>資料載入失敗，請確認 GAS 存取權限是否設定為「所有人」。</li>";
+      listEl.innerHTML = "<li style='text-align:center; color:red;'>資料載入失敗，請檢查網路連線。</li>";
     };
     document.body.appendChild(script);
   }
@@ -200,8 +239,8 @@
       if (result.result === "success") {
         alert(`預約成功！\n您的預約編號為：${result.id}\n（請保留此編號以供後續取消驗證）`);
         document.getElementById('booking-form').reset();
-        selectedTimeSlot = "";
-        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+        initDatePicker();
+        generateTimeButtons();
         fetchBookings();
       } else {
         alert("預約未成功：" + (result.message || "請再試一次。"));
@@ -256,6 +295,7 @@
   }
 
   // 初始化執行
+  initDatePicker();
   generateTimeButtons();
   fetchBookings();
 </script>
