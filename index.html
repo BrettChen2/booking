@@ -15,8 +15,6 @@
         .time-btn.selected { background: #4CAF50; color: white; border-color: #4CAF50; }
         button { background: #007BFF; color: white; border: none; font-weight: bold; cursor: pointer; }
         button:hover { background: #0056b3; }
-        
-        /* 右側面板樣式 */
         .list-box { background: white; padding: 25px; border-radius: 12px; width: 100%; max-width: 380px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); box-sizing: border-box; text-align: left; }
         .list-title { font-weight: bold; font-size: 18px; margin-bottom: 15px; color: #333; border-bottom: 3px solid #007BFF; padding-bottom: 6px; }
         .booking-group-title { font-weight: bold; font-size: 14px; color: #007BFF; background: #e6f7ff; padding: 6px 10px; border-radius: 4px; margin-top: 15px; margin-bottom: 5px; }
@@ -79,17 +77,8 @@
     const timeGrid = document.getElementById('timeGrid');
     const listContainer = document.getElementById('bookingList');
 
-    // 寫死當前基礎日期，避免時區轉換崩潰
-    const todayStr = "2026-09-04";
-
-    // 終極安全日期清洗器：直接擷取前 10 個字元 (YYYY-MM-DD)，絕不報錯
-    function cleanDate(dateVal) {
-        if (!dateVal) return "";
-        return String(dateVal).substring(0, 10);
-    }
-
     function renderUI() {
-        const targetDate = cleanDate(dateInput.value);
+        const targetDate = dateInput.value;
         timeGrid.innerHTML = "";
         listContainer.innerHTML = "";
         selectedTime = "";
@@ -97,14 +86,14 @@
         const currentDayBookings = bookedData[targetDate] || [];
         const busyTimes = currentDayBookings.map(b => b.time);
         
-        // 取得目前本地的小時數
+        // 取得當前的即時本地小時數
         const currentHour = new Date().getHours();
 
         // 1. 產生左側可用時段按鈕
         const freeTimes = allSlots.filter(slot => {
             if (busyTimes.includes(slot)) return false;
-            // 防呆：如果是今天，過期的整點不顯示
-            if (targetDate === todayStr) {
+            // 限制過去時間：如果是今天(2026-09-04)，時段整點小於等於目前小時就隱藏
+            if (targetDate === "2026-09-04") {
                 const slotHour = parseInt(slot.substring(0, 2), 10);
                 if (slotHour <= currentHour) return false;
             }
@@ -129,7 +118,7 @@
 
         // 2. 產生右側「全未來未過期清單」
         const futureDates = Object.keys(bookedData)
-            .filter(d => d >= todayStr)
+            .filter(d => d >= "2026-09-04")
             .sort();
 
         let hasAnyFutureData = false;
@@ -138,7 +127,7 @@
             let dayBookings = bookedData[d] || [];
             
             // 如果是今天，過濾掉今天已經過去的預約
-            if (d === todayStr) {
+            if (d === "2026-09-04") {
                 dayBookings = dayBookings.filter(b => {
                     const slotHour = parseInt(b.time.substring(0, 2), 10);
                     return slotHour > currentHour;
@@ -148,7 +137,6 @@
             if (dayBookings.length > 0) {
                 hasAnyFutureData = true;
                 
-                // 產生日期小分類標題
                 const groupTitle = document.createElement('div');
                 groupTitle.className = 'booking-group-title';
                 groupTitle.innerText = `📅 ${d}`;
@@ -170,14 +158,15 @@
     }
 
     function syncCloud() {
-        renderUI(); // 兜底：先長按鈕
+        renderUI();
 
         fetch(GAS_URL + "?t=" + new Date().getTime())
             .then(res => res.json())
             .then(data => {
                 bookedData = {};
                 for (let k in data) { 
-                    bookedData[cleanDate(k)] = data[k]; 
+                    let cleanKey = String(k).substring(0, 10);
+                    bookedData[cleanKey] = data[k]; 
                 }
                 renderUI();
             })
@@ -223,3 +212,10 @@
             bookedData[date] = bookedData[date].filter(b => !(b.name === name && b.time === time));
         }
         alert(`✅ 取消要求已送出！\n姓名：${name}\n日期：${date}\n時段：${time}`);
+        document.getElementById('cName').value = '';
+        renderUI();
+
+        fetch(GAS_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "application/json" },
