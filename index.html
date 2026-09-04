@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>線上預約系統</title>
+  <title>正聲嘉義台一錄線上預約系統</title>
   
   <!-- 引入 Flatpickr 樣式庫與主題 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -51,7 +51,7 @@
     .btn-cancel { background-color: #cf222e; }
     .btn-cancel:hover { background-color: #a40e26; }
     
-    /* 頁籤切換按鈕區塊 (維持左右平行排列) */
+    /* 頁籤切換按鈕區塊 (左右平行) */
     .tab-buttons { display: flex; gap: 10px; margin-top: 12px; margin-bottom: 20px; border-bottom: 1px solid #d0d7de; padding-bottom: 15px; }
     .tab-btn { flex: 1; background: #f3f4f6; color: #24292f; border: 1px solid #d0d7de; padding: 10px; cursor: pointer; font-weight: 600; border-radius: 6px; text-align: center; }
     .tab-btn.active { background: #0969da; color: white; border-color: #0969da; }
@@ -64,10 +64,10 @@
     /* 預約人與訪問單位水平排列樣式 */
     .booking-info-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; font-size: 0.9rem; color: #24292f; margin-bottom: 8px; }
     .booking-info-item { display: inline-flex; align-items: center; }
+    .booking-id-tag { color: #57606a; font-size: 0.85rem; font-weight: normal; margin-left: 4px; }
 
     .time-tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-    .time-tag { background-color: #ddf4ff; color: #0969da; font-size: 0.8rem; padding: 3px 8px; border-radius: 4px; border: 1px solid #54aeff; font-weight: 500; }
-    .time-tag small { color: #57606a; font-size: 0.75rem; margin-left: 3px; }
+    .time-tag { background-color: #ddf4ff; color: #0969da; font-size: 0.8rem; padding: 4px 10px; border-radius: 4px; border: 1px solid #54aeff; font-weight: 500; }
     .status-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; background: #2da44e; color: white; font-weight: 600; white-space: nowrap; margin-left: 10px; }
     .hint-text { font-size: 0.8rem; color: #57606a; margin-top: 4px; font-weight: normal; }
     .optional-tag { font-size: 0.8rem; color: #57606a; font-weight: normal; margin-left: 4px; }
@@ -82,10 +82,8 @@
 <div class="container">
   <!-- 左側：預約與取消表單區塊 -->
   <div class="left-panel card">
-    <!-- 1. 標題字樣移至最上方 -->
     <div class="section-title" id="form-header-title">線上預約申請</div>
 
-    <!-- 2. 左右兩顆按鈕放在標題下方 -->
     <div class="tab-buttons">
       <button class="tab-btn active" id="tab-book" onclick="switchForm('book')">線上預約申請</button>
       <button class="tab-btn" id="tab-cancel" onclick="switchForm('cancel')">取消預約申請</button>
@@ -108,7 +106,6 @@
         </select>
       </div>
 
-      <!-- 訪問單位欄位 (選填) -->
       <div class="form-group">
         <label for="unit">訪問單位 <span class="optional-tag">(選填)</span></label>
         <input type="text" id="unit" placeholder="例如：資訊處、研發部 (無則可不填)">
@@ -129,7 +126,7 @@
     <form id="cancel-form" style="display: none;">
       <div class="form-group">
         <label for="cancel-id">預約編號</label>
-        <input type="text" id="cancel-id" required placeholder="請輸入 10 位數預預約編號 (如: 2609041530)">
+        <input type="text" id="cancel-id" required placeholder="請輸入 10 位數預約編號 (如: 2609041530)">
       </div>
       <div class="form-group">
         <label for="cancel-name">預約姓名驗證</label>
@@ -153,7 +150,6 @@
   <div class="right-panel card">
     <div class="section-title">預約狀態清單 (僅顯示有效預約)</div>
     
-    <!-- 日期篩選區塊 -->
     <div class="filter-bar">
       <label for="filter-date">🔍 篩選預約日期：</label>
       <select id="filter-date" onchange="renderBookingList()">
@@ -186,7 +182,6 @@
   let workdaySet = new Set();
   let pickerInstance = null;
 
-  // 國定假日清單
   const customHolidays = [
     "2025-01-01", "2025-01-27", "2025-01-28", "2025-01-29", "2025-01-30", "2025-01-31",
     "2025-02-28", "2025-04-03", "2025-04-04", "2025-05-01", "2025-05-30", "2025-09-28",
@@ -317,7 +312,6 @@
     }
   }
 
-  // 切換預約 / 取消表單（同時動態改變上方標題）
   function switchForm(type) {
     const titleEl = document.getElementById('form-header-title');
     
@@ -371,16 +365,14 @@
 
         if (!groupedMap.has(groupKey)) {
           groupedMap.set(groupKey, {
+            id: item.id, // 取出該筆編號
             date: cleanDate,
             name: item.name,
             unit: itemUnit,
             slots: []
           });
         }
-        groupedMap.get(groupKey).slots.push({
-          time: item.time,
-          id: item.id
-        });
+        groupedMap.get(groupKey).slots.push(item.time);
       });
 
       const now = new Date();
@@ -447,10 +439,11 @@
     }
 
     filteredList.forEach(group => {
-      group.slots.sort((a, b) => a.time.localeCompare(b.time));
+      group.slots.sort((a, b) => a.localeCompare(b));
 
-      const slotsHtml = group.slots.map(s => 
-        `<span class="time-tag">⏰ ${escapeHtml(s.time)} <small>(${escapeHtml(s.id)})</small></span>`
+      // 產生單純的時間標籤
+      const slotsHtml = group.slots.map(time => 
+        `<span class="time-tag">⏰ ${escapeHtml(time)}</span>`
       ).join('');
 
       const unitHtml = group.unit 
@@ -467,6 +460,7 @@
           <div class="booking-info-row">
             <div class="booking-info-item">
               預約人：<strong>${escapeHtml(group.name)}</strong>
+              <span class="booking-id-tag">(編號: ${escapeHtml(group.id)})</span>
             </div>
             ${unitHtml}
           </div>
