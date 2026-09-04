@@ -34,12 +34,6 @@
     label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9rem; }
     input, select { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #d0d7de; border-radius: 6px; background-color: #fff; }
     input:focus, select:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
-    
-    /* 手動設定假日輸入框與按鈕組合 */
-    .holiday-input-group { display: flex; gap: 8px; margin-top: 5px; }
-    .holiday-input-group input { flex: 1; }
-    .btn-holiday { padding: 8px 12px; background-color: #6e7781; color: white; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; font-weight: 600; }
-    .btn-holiday:hover { background-color: #57606a; }
 
     /* Flatpickr 灰色反白停用樣式優化 */
     .flatpickr-day.flatpickr-disabled, 
@@ -130,15 +124,6 @@
       <div class="form-group">
         <label for="date">預約日期 <span class="hint-text">(六日與國定假日已停用無法點選)</span></label>
         <input type="text" id="date" placeholder="請選擇預約日期" required readonly>
-      </div>
-
-      <!-- 手動動態新增國定假日欄位 -->
-      <div class="form-group">
-        <label for="custom-holiday-input">手動新增國定假日 <span class="hint-text">(填入後自動停用該日預約)</span></label>
-        <div class="holiday-input-group">
-          <input type="text" id="custom-holiday-input" placeholder="格式如：YYYY-MM-DD (多筆請用逗號隔開)">
-          <button type="button" class="btn-holiday" onclick="addCustomHoliday()">新增為假日</button>
-        </div>
       </div>
 
       <div class="form-group">
@@ -262,43 +247,6 @@
 
   function initHolidayData() {
     customHolidays.forEach(date => holidaySet.add(date));
-  }
-
-  /* 手動新增國定假日處理邏輯 */
-  function addCustomHoliday() {
-    const inputEl = document.getElementById('custom-holiday-input');
-    const inputVal = inputEl.value.trim();
-
-    if (!inputVal) {
-      alert("請輸入有效的日期 (格式如: 2026-10-25)");
-      return;
-    }
-
-    const dates = inputVal.split(',').map(d => d.trim());
-    let addedCount = 0;
-
-    dates.forEach(rawDate => {
-      const cleanDate = formatDateString(rawDate);
-      if (cleanDate && cleanDate.length === 10) {
-        holidaySet.add(cleanDate);
-        addedCount++;
-      }
-    });
-
-    if (addedCount > 0) {
-      alert(`已成功新增 ${addedCount} 個國定假日！月曆已動態更新。`);
-      inputEl.value = '';
-
-      if (pickerInstance) {
-        const currentDate = document.getElementById('date').value;
-        const validNextDate = getNextWorkingDay(new Date(currentDate || new Date()));
-        pickerInstance.setDate(validNextDate, true);
-        pickerInstance.redraw();
-      }
-      generateTimeButtons();
-    } else {
-      alert("日期格式輸入不正確，請使用 YYYY-MM-DD 格式 (例如: 2026-10-25)");
-    }
   }
 
   function isDateDisabled(dateObj) {
