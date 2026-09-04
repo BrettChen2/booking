@@ -88,14 +88,15 @@
     const listContainer = document.getElementById('bookingList');
     const mask = document.getElementById('mask');
 
-    // 取得當前的即時本地時間 (相容 2026 年)
+    // 取得當前日期 (2026年9月4日)
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
     
-    // 【防呆1】：限制日期輸入框「最低只能選今天」，禁止選取過去的日期
+    // 【防呆1】：限制日期最低只能選今天
     dateInput.value = todayStr;
     dateInput.min = todayStr;
 
+    // 修正後的超安全日期清洗器（解決陣列不支援 .trim() 的崩潰問題）
     function getCleanDate(str) {
         if(!str) return "";
         let s = String(str);
@@ -112,15 +113,14 @@
         const currentDayBookings = bookedData[targetDate] || [];
         const busyTimes = currentDayBookings.map(b => b.time);
         
-        // 取得目前的小時數，用來比對當天過去的時間
+        // 取得目前的小時數
         const currentHour = new Date().getHours();
 
         // 1. 篩選：同時剔除「已被預約」及「今天已過去的小時」
         const freeTimes = allSlots.filter(slot => {
-            // 檢查是否已被雲端約走
             if (busyTimes.includes(slot)) return false;
 
-            // 【防呆2】：如果是選擇今天，比對時段開頭的整點，小於等於當前小時就隱藏
+            // 【防呆2】：如果選今天，比對時段開頭的整點，小於等於當前小時就隱藏
             if (targetDate === todayStr) {
                 const slotStartHour = parseInt(slot.split(':')[0]);
                 if (slotStartHour <= currentHour) return false; 
@@ -177,6 +177,7 @@
             });
     }
 
+    // 當日期變更時，立即重繪
     dateInput.addEventListener('change', renderUI);
 
     // 預約表單提交
