@@ -125,7 +125,7 @@
     <div class="loading-overlay" id="loadingOverlay">連線雲端中，請稍候...</div>
     
     <!-- 預約區塊 -->
-    <h2>📅 正聲嘉義台一錄線上預約系統</h2>
+    <h2>📅 線上預約系統</h2>
     <form id="bookingForm">
         <div class="form-group">
             <label for="name">預約人姓名</label>
@@ -178,7 +178,7 @@
 </div>
 
 <script>
-    // ⚠️ 貼上你在 步驟 3 複製的 Google Apps Script 網頁應用程式 URL
+    // ⚠️ 請務必確認這裡有換成你的 GAS 網頁應用程式 URL (結尾必須是 /exec)
     const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwPuq7IE4Xd8giaTBE3O0Moj1Bwqs7QrQ383yMcav14RapgFH37CY_Weuk5hSTaA8HZ2A/exec";
 
     const allTimeSlots = [
@@ -194,42 +194,49 @@
     const timeGrid = document.getElementById('timeGrid');
     const loadingOverlay = document.getElementById('loadingOverlay');
 
-    // 格式化日期為 YYYY-MM-DD
-    function formatDateString(dateObj) {
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const day = String(dateObj.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
+    // 強制把任何日期格式都轉成最乾淨的 YYYY-MM-DD
+    function cleanDateStr(str) {
+        if (!str) return "";
+        return str.split('T')[0].trim();
     }
 
     // 預設日期設定為今天
-    const todayStr = formatDateString(new Date());
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+    
     dateInput.value = todayStr;
     document.getElementById('cancelDate').value = todayStr;
 
     function fetchCloudData() {
         loadingOverlay.style.display = "flex";
-        fetch(GAS_WEB_APP_URL)
+        
+        // 加上時間戳記防止瀏覽器瘋狂讀取舊快取
+        const cacheBuster = GAS_WEB_APP_URL + (GAS_WEB_APP_URL.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
+        
+        fetch(cacheBuster)
             .then(res => res.json())
             .then(data => {
-                // 將所有雲端回傳的日期標準化（移除可能的時區或 T00:00 雜訊）
+                // 將所有雲端回傳的日期標準化
                 bookedData = {};
                 for (let key in data) {
-                    let cleanKey = key.split('T')[0];
-                    bookedData[cleanKey] = data[key];
+                    bookedData[cleanDateStr(key)] = data[key];
                 }
                 renderTimeSlots();
                 loadingOverlay.style.display = "none";
             })
             .catch(err => {
                 console.error(err);
-                alert("同步雲端資料失敗，請檢查網址或權限設定。");
+                // 【防呆機制】：就算雲端完全斷線，也強制讓按鈕顯示，不讓畫面空白
+                renderTimeSlots();
                 loadingOverlay.style.display = "none";
             });
     }
 
     function renderTimeSlots() {
-        const selectedDate = dateInput.value;
+        const selectedDate = cleanDateStr(dateInput.value);
         timeGrid.innerHTML = "";
         selectedTime = "";
 
@@ -291,3 +298,23 @@
         const cDate = document.getElementById('cancelDate').value;
         const cTime = document.getElementById('cancelTime').value;
 
+        loadingOverlay.style.display = "flex";
+        fetch(GAS_WEB_APP_URL, {
+            method: "POST",
+            body: JSON.stringify({ action: "cancel", name: cName, date: cDate, time: cTime })
+        })
+        .then(res => res.json())
+        .then(resData => {
+            if (resData.status === "success") {
+                alert(`✅ 雲端已同步取消！\n\n原預約人：${cName}\n日期：${cDate}\n時段：${cTime}`);
+                document.getElementById('cancelName').value = '';
+                fetchCloudData();
+            } else {
+                alert("❌ 取消失敗：" + resData.message);
+                loadingOverlay.style.display = "none";
+            }
+        });
+    });
+
+    // 網頁開啟時自動同步
+    fetchCloudData();
