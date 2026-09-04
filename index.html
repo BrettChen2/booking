@@ -88,47 +88,47 @@
     const listContainer = document.getElementById('bookingList');
     const mask = document.getElementById('mask');
 
-    // 取得當前日期 (2026年9月4日)
+    // 取得今天本地日期 (格式: YYYY-MM-DD)
     const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    const todayStr = today.toISOString().split('T')[0];
     
-    // 【防呆1】：限制日期最低只能選今天
+    // 防呆：日期最低只能選今天
     dateInput.value = todayStr;
     dateInput.min = todayStr;
 
-    // 修正後的超安全日期清洗器（解決陣列不支援 .trim() 的崩潰問題）
-    function getCleanDate(str) {
-        if(!str) return "";
-        let s = String(str);
-        return s.includes('T') ? s.split('T')[0].trim() : s.trim();
+    // 精簡安全的日期清洗：直接取出前 10 個字元 (YYYY-MM-DD)，絕不崩潰
+    function cleanDate(dateVal) {
+        if (!dateVal) return "";
+        return String(dateVal).substring(0, 10);
     }
 
-    // 重新繪製時段按鈕與右側清單面版
+    // 渲染 UI (時段按鈕與右側清單)
     function renderUI() {
-        const targetDate = getCleanDate(dateInput.value);
+        const targetDate = cleanDate(dateInput.value);
         timeGrid.innerHTML = "";
         listContainer.innerHTML = "";
         selectedTime = "";
 
+        // 撈出當天的預約
         const currentDayBookings = bookedData[targetDate] || [];
         const busyTimes = currentDayBookings.map(b => b.time);
         
         // 取得目前的小時數
         const currentHour = new Date().getHours();
 
-        // 1. 篩選：同時剔除「已被預約」及「今天已過去的小時」
+        // 篩選可用時段
         const freeTimes = allSlots.filter(slot => {
             if (busyTimes.includes(slot)) return false;
 
-            // 【防呆2】：如果選今天，比對時段開頭的整點，小於等於當前小時就隱藏
+            // 限制過去時間：如果是今天，時段開頭的整點小於等於目前小時就隱藏
             if (targetDate === todayStr) {
-                const slotStartHour = parseInt(slot.split(':')[0]);
-                if (slotStartHour <= currentHour) return false; 
+                const slotHour = parseInt(slot.substring(0, 2), 10);
+                if (slotHour <= currentHour) return false; 
             }
             return true;
         });
 
-        // 產生左側可用按鈕
+        // 產生按鈕
         if (freeTimes.length === 0) {
             timeGrid.innerHTML = `<div style="grid-column:span 2; color:#ff4d4f; font-weight:bold; padding:10px;">本日已無可預約時段 😥</div>`;
         } else {
@@ -145,7 +145,7 @@
             });
         }
 
-        // 2. 產生右側「即時預約清單」
+        // 產生右側清單
         if (currentDayBookings.length === 0) {
             listContainer.innerHTML = '<div class="no-data">本日目前尚無任何預約紀錄 🍃</div>';
         } else {
@@ -159,15 +159,19 @@
         }
     }
 
+    // 雲端雙向同步數據
     function syncCloud() {
         mask.style.display = "flex";
-        renderUI();
+        renderUI(); // 先強制長出基礎按鈕，保證不空白
 
+        // 加上隨機參數強制繞過 GitHub 伺服器的快取
         fetch(GAS_URL + "?t=" + new Date().getTime())
             .then(res => res.json())
             .then(data => {
                 bookedData = {};
-                for (let k in data) { bookedData[getCleanDate(k)] = data[k]; }
+                for (let k in data) { 
+                    bookedData[cleanDate(k)] = data[k]; 
+                }
                 renderUI();
                 mask.style.display = "none";
             })
@@ -177,10 +181,9 @@
             });
     }
 
-    // 當日期變更時，立即重繪
     dateInput.addEventListener('change', renderUI);
 
-    // 預約表單提交
+    // 預約送出
     document.getElementById('bookingForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const name = document.getElementById('name').value.trim();
@@ -207,7 +210,7 @@
         });
     });
 
-    // 取消表單提交
+    // 取消送出
     document.getElementById('cancelForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const name = document.getElementById('cName').value.trim();
@@ -221,3 +224,4 @@
         })
         .then(res => res.json())
         .then(resData => {
+            if(resData.status === "success") {
