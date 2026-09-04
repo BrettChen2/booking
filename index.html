@@ -86,7 +86,7 @@
         // 取得當前的即時本地小時數
         const currentHour = new Date().getHours();
 
-        // 1. 產生按鈕（同時防呆過去時間與約滿時間）
+        // 產生按鈕（同時防呆過去時間與約滿時間）
         const freeTimes = allSlots.filter(slot => {
             if (busyTimes.includes(slot)) return false;
             if (targetDate === "2026-09-04") {
@@ -112,7 +112,7 @@
             });
         }
 
-        // 2. 產生右側清單
+        // 產生右側清單
         if (currentDayBookings.length === 0) {
             listContainer.innerHTML = '<div class="no-data">本日目前尚無任何預約紀錄 🍃</div>';
         } else {
@@ -127,13 +127,14 @@
     }
 
     function syncCloud() {
-        renderUI(); // 強制立刻執行，確保按鈕絕對不會因為網路卡住而生不出來
+        renderUI();
 
         fetch(GAS_URL + "?t=" + new Date().getTime())
             .then(res => res.json())
             .then(data => {
                 bookedData = {};
                 for (let k in data) {
+                    // 修正：安全移除 .trim() 陣列報錯漏洞
                     let cleanKey = String(k).substring(0, 10);
                     bookedData[cleanKey] = data[k];
                 }
