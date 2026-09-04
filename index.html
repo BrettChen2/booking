@@ -1,140 +1,571 @@
-function doGet(e) {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var data = sheet.getDataRange().getValues();
-  var result = [];
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>線上預約系統</title>
+  
+  <!-- 引入 Flatpickr 樣式庫與主題 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    body { background-color: #f6f8fa; padding: 20px; color: #24292f; }
+    .container { max-width: 1100px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
+    .card { background: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 20px; box-shadow: 0 1px 3px rgba(27,31,36,0.04); }
+    .left-panel { flex: 1; min-width: 340px; }
+    .right-panel { flex: 1.2; min-width: 350px; }
+    h2 { font-size: 1.25rem; margin-bottom: 15px; border-bottom: 1px solid #d0d7de; padding-bottom: 8px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9rem; }
+    input, select { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #d0d7de; border-radius: 6px; background-color: #fff; }
+    input:focus, select:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
+    
+    /* Flatpickr 灰色反白停用樣式優化 */
+    .flatpickr-day.flatpickr-disabled, 
+    .flatpickr-day.flatpickr-disabled:hover {
+      background-color: #f3f4f6 !important;
+      color: #d0d7de !important;
+      cursor: not-allowed !important;
+      text-decoration: line-through;
+    }
 
-  // 第 1 列為標頭 (ID, 姓名, 單位, 日期, 時間, 狀態)
-  for (var i = 1; i < data.length; i++) {
-    result.push({
-      id: String(data[i][0] || '').replace("'", ""),
-      name: String(data[i][1] || ''),
-      unit: String(data[i][2] || ''),
-      date: formatDateString(data[i][3]), // 確保讀取時也是正確的日期字串
-      time: String(data[i][4] || ''),
-      status: String(data[i][5] || '')
+    /* 清單頂部篩選列 */
+    .filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; background: #f6f8fa; padding: 10px 12px; border-radius: 6px; border: 1px solid #d0d7de; }
+    .filter-bar label { margin-bottom: 0; font-size: 0.85rem; color: #57606a; white-space: nowrap; }
+    .filter-bar select { width: auto; flex: 1; max-width: 200px; padding: 6px 10px; }
+
+    /* 時段按鈕網格樣式 */
+    .time-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-top: 5px; }
+    .time-btn { background-color: #ffffff; color: #24292f; border: 1px solid #d0d7de; padding: 8px 4px; font-size: 0.85rem; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.2s ease; position: relative; }
+    .time-btn:hover { background-color: #f3f4f6; border-color: #0969da; }
+    .time-btn.selected { background-color: #0969da; color: #ffffff; border-color: #0969da; font-weight: 600; }
+
+    /* 按鈕樣式 */
+    .btn-submit { width: 100%; padding: 10px; font-size: 1rem; border: none; border-radius: 6px; background-color: #2da44e; color: white; font-weight: 600; cursor: pointer; margin-top: 10px; }
+    .btn-submit:hover { background-color: #2c974b; }
+    .btn-submit:disabled { background-color: #94d3a2; cursor: not-allowed; }
+    .btn-cancel { background-color: #cf222e; }
+    .btn-cancel:hover { background-color: #a40e26; }
+    
+    /* 頁籤樣式 */
+    .tab-buttons { display: flex; gap: 10px; margin-bottom: 15px; }
+    .tab-btn { flex: 1; background: #f3f4f6; color: #24292f; border: 1px solid #d0d7de; padding: 8px; cursor: pointer; font-weight: 500; border-radius: 6px; }
+    .tab-btn.active { background: #0969da; color: white; border-color: #0969da; }
+    
+    /* 右側即時清單樣式 */
+    .booking-list { list-style: none; max-height: 520px; overflow-y: auto; }
+    .booking-item { background: #ffffff; border: 1px solid #d0d7de; border-left: 5px solid #0969da; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .booking-time-highlight { font-size: 1.1rem; font-weight: 700; color: #0969da; margin-bottom: 6px; }
+    
+    /* 預約人與訪問單位水平排列樣式 */
+    .booking-info-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; font-size: 0.9rem; color: #24292f; margin-bottom: 8px; }
+    .booking-info-item { display: inline-flex; align-items: center; }
+
+    .time-tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .time-tag { background-color: #ddf4ff; color: #0969da; font-size: 0.8rem; padding: 3px 8px; border-radius: 4px; border: 1px solid #54aeff; font-weight: 500; }
+    .time-tag small { color: #57606a; font-size: 0.75rem; margin-left: 3px; }
+    .status-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; background: #2da44e; color: white; font-weight: 600; white-space: nowrap; margin-left: 10px; }
+    .hint-text { font-size: 0.8rem; color: #57606a; margin-top: 4px; font-weight: normal; }
+    .optional-tag { font-size: 0.8rem; color: #57606a; font-weight: normal; margin-left: 4px; }
+    .no-slots-msg { grid-column: 1 / -1; text-align: center; color: #cf222e; font-size: 0.85rem; padding: 10px; background: #ffebe9; border-radius: 6px; border: 1px solid #ffc1c0; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- 左側：預約與取消表單 -->
+  <div class="left-panel card">
+    <div class="tab-buttons">
+      <button class="tab-btn active" onclick="switchForm('book')">新增預約</button>
+      <button class="tab-btn" onclick="switchForm('cancel')">取消預約</button>
+    </div>
+
+    <!-- 預約表單 -->
+    <form id="booking-form">
+      <h2>線上預約申請</h2>
+      <div class="form-group">
+        <label for="name">姓名 / 稱呼</label>
+        <select id="name" required>
+          <option value="" disabled selected>-- 請選擇姓名 --</option>
+          <option value="吳春滿">吳春滿</option>
+          <option value="劉怡妙">劉怡妙</option>
+          <option value="許世峰">許世峰</option>
+          <option value="楊瑞玲">楊瑞玲</option>
+          <option value="陳耿宏">陳耿宏</option>
+          <option value="邱慶彰">邱慶彰</option>
+          <option value="張鈞睿">張鈞睿</option>
+          <option value="李育勇">李育勇</option>
+        </select>
+      </div>
+
+      <!-- 訪問單位欄位 (改為選填，移除 required) -->
+      <div class="form-group">
+        <label for="unit">訪問單位 <span class="optional-tag">(選填)</span></label>
+        <input type="text" id="unit" placeholder="例如：資訊處、研發部 (無則可不填)">
+      </div>
+
+      <div class="form-group">
+        <label for="date">預約日期 <span class="hint-text">(六日與國定假日已停用無法點選)</span></label>
+        <input type="text" id="date" placeholder="請選擇預約日期" required readonly>
+      </div>
+      <div class="form-group">
+        <label>選擇可預約時段 (08:00 - 22:00) <div class="hint-text">💡 已隱藏過期與已被預約時段</div></label>
+        <div class="time-grid" id="time-grid"></div>
+      </div>
+      <button type="submit" class="btn-submit" id="btn-book">送出預約</button>
+    </form>
+
+    <!-- 取消表單 -->
+    <form id="cancel-form" style="display: none;">
+      <h2>取消預約</h2>
+      <div class="form-group">
+        <label for="cancel-id">預約編號</label>
+        <input type="text" id="cancel-id" required placeholder="請輸入 10 位數預約編號 (如: 2609041530)">
+      </div>
+      <div class="form-group">
+        <label for="cancel-name">預約姓名驗證</label>
+        <select id="cancel-name" required>
+          <option value="" disabled selected>-- 請選擇預約時的姓名 --</option>
+          <option value="吳春滿">吳春滿</option>
+          <option value="劉怡妙">劉怡妙</option>
+          <option value="許世峰">許世峰</option>
+          <option value="楊瑞玲">楊瑞玲</option>
+          <option value="陳耿宏">陳耿宏</option>
+          <option value="邱慶彰">邱慶彰</option>
+          <option value="張鈞睿">張鈞睿</option>
+          <option value="李育勇">李育勇</option>
+        </select>
+      </div>
+      <button type="submit" class="btn-submit btn-cancel" id="btn-cancel">確認取消預約</button>
+    </form>
+  </div>
+
+  <!-- 右側：即時預約清單 -->
+  <div class="right-panel card">
+    <h2>預約狀態清單 (僅顯示有效預約)</h2>
+    
+    <!-- 日期篩選區塊 -->
+    <div class="filter-bar">
+      <label for="filter-date">🔍 篩選預約日期：</label>
+      <select id="filter-date" onchange="renderBookingList()">
+        <option value="ALL">顯示全部日期</option>
+      </select>
+    </div>
+
+    <ul class="booking-list" id="booking-list">
+      <li style="text-align:center; color:#57606a;">載入資料中...</li>
+    </ul>
+  </div>
+</div>
+
+<!-- 引入 Flatpickr 主程式與繁體中文語系檔 -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh-tw.js"></script>
+
+<script>
+  const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxgHeRHyODH2ZFzvCc4LpUwmq8OI7KzUxNDuN1P57Zw382nd1KGRu_f177lKiWHDIZgaA/exec";
+
+  let selectedTimeSlots = [];
+  let rawGroupedBookings = [];
+  let bookedSlotsSet = new Set();
+  let holidaySet = new Set();
+  let workdaySet = new Set();
+  let pickerInstance = null;
+
+  // 內建國定假日清單
+  const customHolidays = [
+    "2025-01-01", "2025-01-27", "2025-01-28", "2025-01-29", "2025-01-30", "2025-01-31",
+    "2025-02-28", "2025-04-03", "2025-04-04", "2025-05-01", "2025-05-30", "2025-09-28",
+    "2025-10-06", "2025-10-10",
+    "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20",
+    "2026-02-28", "2026-04-03", "2026-04-06", "2026-05-01", "2026-06-19", "2026-09-25",
+    "2026-09-28", "2026-10-10"
+  ];
+
+  function formatDateToString(d) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function formatDateString(rawDateStr) {
+    if (!rawDateStr) return '';
+    const str = String(rawDateStr).trim();
+    
+    const match = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (match) {
+      const yyyy = match[1];
+      const mm = match[2].padStart(2, '0');
+      const dd = match[3].padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return formatDateToString(d);
+    }
+
+    return str;
+  }
+
+  function initHolidayData() {
+    customHolidays.forEach(date => holidaySet.add(date));
+  }
+
+  function isDateDisabled(dateObj) {
+    const dateStr = formatDateToString(dateObj);
+    const day = dateObj.getDay();
+
+    if (workdaySet.has(dateStr)) return false;
+    if (holidaySet.has(dateStr)) return true;
+    return (day === 0 || day === 6);
+  }
+
+  function getNextWorkingDay(dateObj) {
+    const d = new Date(dateObj);
+    while (isDateDisabled(d)) {
+      d.setDate(d.getDate() + 1);
+    }
+    return d;
+  }
+
+  async function initDatePicker() {
+    initHolidayData();
+
+    const today = new Date();
+    const defaultDate = getNextWorkingDay(today);
+
+    pickerInstance = flatpickr("#date", {
+      locale: "zh_tw",
+      dateFormat: "Y-m-d",
+      minDate: "today",
+      defaultDate: defaultDate,
+      disable: [
+        function(date) {
+          return isDateDisabled(date);
+        }
+      ],
+      onChange: function(selectedDates, dateStr) {
+        generateTimeButtons();
+      }
+    });
+
+    generateTimeButtons();
+  }
+
+  function generateTimeButtons() {
+    const grid = document.getElementById('time-grid');
+    grid.innerHTML = "";
+    selectedTimeSlots = [];
+    
+    const selectedDateVal = document.getElementById('date').value;
+    if (!selectedDateVal) return;
+
+    const now = new Date();
+    const todayStr = formatDateToString(now);
+    const isToday = selectedDateVal === todayStr;
+    const currentHour = now.getHours();
+
+    let count = 0;
+
+    for (let hour = 8; hour < 22; hour++) {
+      const start = hour.toString().padStart(2, '0') + ":00";
+      const end = (hour + 1).toString().padStart(2, '0') + ":00";
+      const slot = `${start} - ${end}`;
+      const slotKey = `${selectedDateVal}_${slot}`;
+
+      if (isToday && hour <= currentHour) continue;
+      if (bookedSlotsSet.has(slotKey)) continue;
+
+      count++;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'time-btn';
+      btn.innerText = slot;
+
+      btn.onclick = () => {
+        if (btn.classList.contains('selected')) {
+          btn.classList.remove('selected');
+          selectedTimeSlots = selectedTimeSlots.filter(s => s !== slot);
+        } else {
+          btn.classList.add('selected');
+          selectedTimeSlots.push(slot);
+        }
+      };
+
+      grid.appendChild(btn);
+    }
+
+    if (count === 0) {
+      grid.innerHTML = `<div class="no-slots-msg">⚠️ 該日期已無可預約的時段</div>`;
+    }
+  }
+
+  function switchForm(type) {
+    const btns = document.querySelectorAll('.tab-btn');
+    btns[0].classList.toggle('active', type === 'book');
+    btns[1].classList.toggle('active', type === 'cancel');
+    document.getElementById('booking-form').style.display = type === 'book' ? 'block' : 'none';
+    document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
+  }
+
+  function fetchBookings() {
+    const listEl = document.getElementById('booking-list');
+    const callbackName = 'handleGasResponse_' + Math.floor(Math.random() * 100000);
+    
+    window[callbackName] = function(data) {
+      delete window[callbackName];
+      document.body.removeChild(script);
+
+      if (!Array.isArray(data)) {
+        listEl.innerHTML = "<li style='text-align:center;'>資料讀取異常</li>";
+        return;
+      }
+
+      const activeBookings = data.filter(item => item.status === '已預約');
+
+      bookedSlotsSet.clear();
+      activeBookings.forEach(item => {
+        const cleanDate = formatDateString(item.date);
+        bookedSlotsSet.add(`${cleanDate}_${item.time}`);
+      });
+
+      if (activeBookings.length === 0) {
+        rawGroupedBookings = [];
+        updateDateSelectOptions([]);
+        renderBookingList();
+        generateTimeButtons();
+        return;
+      }
+
+      const groupedMap = new Map();
+
+      activeBookings.forEach(item => {
+        const cleanDate = formatDateString(item.date);
+        const groupKey = `${cleanDate}_${item.name}`;
+        const itemUnit = item.unit || item.department || '';
+
+        if (!groupedMap.has(groupKey)) {
+          groupedMap.set(groupKey, {
+            date: cleanDate,
+            name: item.name,
+            unit: itemUnit,
+            slots: []
+          });
+        }
+        groupedMap.get(groupKey).slots.push({
+          time: item.time,
+          id: item.id
+        });
+      });
+
+      const now = new Date();
+      const todayStr = formatDateToString(now);
+
+      rawGroupedBookings = Array.from(groupedMap.values()).sort((a, b) => {
+        const isAUpcoming = a.date >= todayStr;
+        const isBUpcoming = b.date >= todayStr;
+
+        if (isAUpcoming && isBUpcoming) return a.date.localeCompare(b.date);
+        if (isAUpcoming && !isBUpcoming) return -1;
+        if (!isAUpcoming && isBUpcoming) return 1;
+        return b.date.localeCompare(a.date);
+      });
+
+      const uniqueDates = Array.from(new Set(rawGroupedBookings.map(item => item.date)));
+      updateDateSelectOptions(uniqueDates);
+      renderBookingList();
+      generateTimeButtons();
+    };
+
+    const script = document.createElement('script');
+    script.src = `${GAS_API_URL}?callback=${callbackName}`;
+    script.onerror = function() {
+      listEl.innerHTML = "<li style='text-align:center; color:red; padding: 20px 0;'>資料載入失敗，請檢查網路連線。</li>";
+    };
+    document.body.appendChild(script);
+  }
+
+  function updateDateSelectOptions(dates) {
+    const selectEl = document.getElementById('filter-date');
+    const currentSelected = selectEl.value;
+
+    selectEl.innerHTML = '<option value="ALL">顯示全部日期</option>';
+    
+    dates.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.innerText = d;
+      selectEl.appendChild(opt);
+    });
+
+    if (dates.includes(currentSelected)) {
+      selectEl.value = currentSelected;
+    } else {
+      selectEl.value = 'ALL';
+    }
+  }
+
+  function renderBookingList() {
+    const listEl = document.getElementById('booking-list');
+    const selectedFilterDate = document.getElementById('filter-date').value;
+
+    listEl.innerHTML = "";
+
+    const filteredList = rawGroupedBookings.filter(item => {
+      if (selectedFilterDate === 'ALL') return true;
+      return item.date === selectedFilterDate;
+    });
+
+    if (filteredList.length === 0) {
+      listEl.innerHTML = "<li style='text-align:center; padding: 20px 0; color:#57606a;'>目前尚無符合條件的預約紀錄</li>";
+      return;
+    }
+
+    filteredList.forEach(group => {
+      group.slots.sort((a, b) => a.time.localeCompare(b.time));
+
+      const slotsHtml = group.slots.map(s => 
+        `<span class="time-tag">⏰ ${escapeHtml(s.time)} <small>(${escapeHtml(s.id)})</small></span>`
+      ).join('');
+
+      // 若沒填寫訪問單位則自動不顯示該項目
+      const unitHtml = group.unit 
+        ? `<div class="booking-info-item">訪問單位：<strong>${escapeHtml(group.unit)}</strong></div>`
+        : '';
+
+      const li = document.createElement('li');
+      li.className = 'booking-item';
+      li.innerHTML = `
+        <div style="flex: 1;">
+          <div class="booking-time-highlight">
+            📅 ${escapeHtml(group.date)}
+          </div>
+          <div class="booking-info-row">
+            <div class="booking-info-item">
+              預約人：<strong>${escapeHtml(group.name)}</strong>
+            </div>
+            ${unitHtml}
+          </div>
+          <div class="time-tag-list">
+            ${slotsHtml}
+          </div>
+        </div>
+        <span class="status-badge">已預約</span>
+      `;
+      listEl.appendChild(li);
     });
   }
 
-  var callback = e.parameter.callback;
-  var jsonOutput = JSON.stringify(result);
-  
-  if (callback) {
-    return ContentService.createTextOutput(callback + '(' + jsonOutput + ')')
-      .setMimeType(ContentService.MimeType.JAVASCRIPT);
-  } else {
-    return ContentService.createTextOutput(jsonOutput)
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
+  document.getElementById('booking-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    if (selectedTimeSlots.length === 0) return alert("請至少點選一個欲預約的時段！");
 
-function doPost(e) {
-  var lock = LockService.getScriptLock();
-  lock.tryLock(10000); // 避免多筆同時寫入造成的編號衝突
+    const submitBtn = document.getElementById('btn-book');
+    submitBtn.disabled = true;
+    submitBtn.innerText = `預約處理中 (共 ${selectedTimeSlots.length} 個時段)...`;
 
-  try {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    var param = JSON.parse(e.postData.contents);
-    var action = param.action;
+    const nameVal = document.getElementById('name').value;
+    const unitVal = document.getElementById('unit').value.trim(); // 可為空字串
+    const dateVal = document.getElementById('date').value;
 
-    if (action === "book") {
-      var bookingDate = String(param.date || '').trim(); // 傳入的日期 (如: 2026-09-04)
-      var bookingName = String(param.name || '').trim();
-      var bookingUnit = String(param.unit || '').trim();
-      var bookingTime = String(param.time || '').trim();
+    let successCount = 0;
+    let createdIds = [];
+    let failMessages = [];
 
-      if (!bookingDate) {
-        return ContentService.createTextOutput(JSON.stringify({
-          result: "error",
-          message: "未提供有效的日期"
-        })).setMimeType(ContentService.MimeType.JSON);
-      }
+    for (const slot of selectedTimeSlots) {
+      const payload = {
+        action: "book",
+        name: nameVal,
+        unit: unitVal,
+        date: dateVal,
+        time: slot
+      };
 
-      var data = sheet.getDataRange().getValues();
-      var targetId = "";
-
-      // 1. 檢查試算表中是否已經有「相同日期」的預約紀錄，如果有就使用同一個編號
-      for (var i = 1; i < data.length; i++) {
-        var rowDate = formatDateString(data[i][3]);
-        var rowId = String(data[i][0] || '').trim();
+      try {
+        const res = await fetch(GAS_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(payload),
+          redirect: 'follow'
+        });
+        const result = await res.json();
         
-        if (rowDate === bookingDate && rowId !== "") {
-          targetId = rowId; // 找到了相同日期的既有編號
-          break;
+        if (result.result === "success") {
+          successCount++;
+          createdIds.push(`${slot} (編號: ${result.id})`);
+        } else {
+          failMessages.push(`${slot}: ${result.message || "失敗"}`);
         }
-      }
-
-      // 2. 若該日期尚未有任何紀錄，則根據目前時間建立一組新的編號 (格式: 'YYMMDDHHmm)
-      if (!targetId) {
-        var now = new Date();
-        var timeZone = Session.getScriptTimeZone();
-        targetId = "'" + Utilities.formatDate(now, timeZone, "yyMMddHHmm");
-      } else {
-        // 確保帶有單引號單頭
-        if (!targetId.startsWith("'")) {
-          targetId = "'" + targetId;
-        }
-      }
-
-      // 3. 確保日期欄位加上單引號轉為純字串格式，防止試算表自動清空或格式跑掉
-      var formattedBookingDate = "'" + bookingDate;
-
-      // 4. 寫入 Google 試算表：[ID, 姓名, 單位, 日期, 時間, 狀態]
-      sheet.appendRow([targetId, bookingName, bookingUnit, formattedBookingDate, bookingTime, "已預約"]);
-
-      return ContentService.createTextOutput(JSON.stringify({
-        result: "success",
-        id: targetId.replace("'", "")
-      })).setMimeType(ContentService.MimeType.JSON);
-    } 
-    
-    else if (action === "cancel") {
-      var targetId = String(param.id || '').trim();
-      var targetName = String(param.name || '').trim();
-      var data = sheet.getDataRange().getValues();
-      var found = false;
-
-      for (var i = 1; i < data.length; i++) {
-        var rowId = String(data[i][0]).replace("'", "").trim();
-        var rowName = String(data[i][1]).trim();
-        var rowStatus = String(data[i][5]).trim();
-
-        if (rowId === targetId && rowName === targetName && rowStatus === "已預約") {
-          // 將狀態改為已取消
-          sheet.getRange(i + 1, 6).setValue("已取消");
-          found = true;
-          break;
-        }
-      }
-
-      if (found) {
-        return ContentService.createTextOutput(JSON.stringify({
-          result: "success"
-        })).setMimeType(ContentService.MimeType.JSON);
-      } else {
-        return ContentService.createTextOutput(JSON.stringify({
-          result: "error",
-          message: "找不到該預約編號或預約姓名不符"
-        })).setMimeType(ContentService.MimeType.JSON);
+      } catch (err) {
+        failMessages.push(`${slot}: 連線錯誤`);
       }
     }
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({
-      result: "error",
-      message: err.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  } finally {
-    lock.releaseLock();
-  }
-}
 
-// 輔助函式：確保讀取與比對日期的格式為 YYYY-MM-DD
-function formatDateString(val) {
-  if (!val) return '';
-  if (val instanceof Date) {
-    var yyyy = val.getFullYear();
-    var mm = String(val.getMonth() + 1).padStart(2, '0');
-    var dd = String(val.getDate()).padStart(2, '0');
-    return yyyy + '-' + mm + '-' + dd;
+    if (successCount > 0) {
+      let msg = `成功預約 ${successCount} 個時段！\n\n預約細節：\n` + createdIds.join("\n");
+      if (failMessages.length > 0) {
+        msg += "\n\n失敗項目：\n" + failMessages.join("\n");
+      }
+      alert(msg);
+      document.getElementById('booking-form').reset();
+      initDatePicker();
+      fetchBookings();
+    } else {
+      alert("預約失敗：\n" + failMessages.join("\n"));
+    }
+
+    submitBtn.disabled = false;
+    submitBtn.innerText = "送出預約";
+  });
+
+  document.getElementById('cancel-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('btn-cancel');
+    submitBtn.disabled = true;
+    submitBtn.innerText = "取消處理中...";
+
+    const payload = {
+      action: "cancel",
+      id: document.getElementById('cancel-id').value.trim(),
+      name: document.getElementById('cancel-name').value
+    };
+
+    try {
+      const res = await fetch(GAS_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+        redirect: 'follow'
+      });
+      const result = await res.json();
+      
+      if (result.result === "success") {
+        alert("已成功取消預約！");
+        document.getElementById('cancel-form').reset();
+        fetchBookings();
+      } else {
+        alert(result.message || "取消失敗，請確認預約編號與姓名是否正確。");
+      }
+    } catch (err) {
+      alert("傳送失敗，請稍後再試。");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerText = "確認取消預約";
+    }
+  });
+
+  function escapeHtml(str) {
+    return String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
-  return String(val).replace("'", "").trim();
-}
+
+  // 初始化
+  initDatePicker();
+  fetchBookings();
+</script>
+
+</body>
+</html>
