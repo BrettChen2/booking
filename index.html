@@ -272,11 +272,30 @@
         });
       });
 
-      // 轉為陣列並按【日期由新到舊 (近期在最上面)】排序
-      rawGroupedBookings = Array.from(groupedMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+      // 取得今天的日期字串 (YYYY-MM-DD)
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      // 收集所有出現過的有效日期（按近期排在前面）
-      const uniqueDates = [...new Set(rawGroupedBookings.map(item => item.date))].sort((a, b) => b.localeCompare(a));
+      // 轉為陣列並排序：
+      // 1. 未來與今天的日期 (>= todayStr) 排在前面，越接近今天的排越前 (升冪 a.localeCompare(b))
+      // 2. 過去的日期 (< todayStr) 排在後面
+      rawGroupedBookings = Array.from(groupedMap.values()).sort((a, b) => {
+        const isAUpcoming = a.date >= todayStr;
+        const isBUpcoming = b.date >= todayStr;
+
+        if (isAUpcoming && isBUpcoming) {
+          return a.date.localeCompare(b.date); // 未來日期：越早（越接近今天）排前面
+        } else if (isAUpcoming && !isBUpcoming) {
+          return -1; // 未來日期優先於過去日期
+        } else if (!isAUpcoming && isBUpcoming) {
+          return 1;
+        } else {
+          return b.date.localeCompare(a.date); // 過去日期：越近期的過去排前面
+        }
+      });
+
+      // 收集所有出現過的有效日期，並以同樣的「接近今天」順序排好
+      const uniqueDates = Array.from(new Set(rawGroupedBookings.map(item => item.date)));
 
       // 更新下拉選單
       updateDateSelectOptions(uniqueDates);
