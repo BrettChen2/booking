@@ -14,9 +14,14 @@
     h2 { font-size: 1.25rem; margin-bottom: 15px; border-bottom: 1px solid #d0d7de; padding-bottom: 8px; }
     .form-group { margin-bottom: 15px; }
     label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9rem; }
-    input { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #d0d7de; border-radius: 6px; }
-    input:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
+    input, select { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #d0d7de; border-radius: 6px; background-color: #fff; }
+    input:focus, select:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
     
+    /* 清單頂部篩選列 */
+    .filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; background: #f6f8fa; padding: 10px 12px; border-radius: 6px; border: 1px solid #d0d7de; }
+    .filter-bar label { margin-bottom: 0; font-size: 0.85rem; color: #57606a; white-space: nowrap; }
+    .filter-bar select { width: auto; flex: 1; max-width: 200px; padding: 6px 10px; }
+
     /* 時段按鈕網格樣式 (支援複選) */
     .time-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-top: 5px; }
     .time-btn { background-color: #ffffff; color: #24292f; border: 1px solid #d0d7de; padding: 8px 4px; font-size: 0.85rem; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.2s ease; position: relative; }
@@ -94,6 +99,15 @@
   <!-- 右側：即時預約清單 -->
   <div class="right-panel card">
     <h2>預約狀態清單 (僅顯示有效預約)</h2>
+    
+    <!-- 日期篩選區塊 -->
+    <div class="filter-bar">
+      <label for="filter-date">🔍 篩選預約日期：</label>
+      <select id="filter-date" onchange="renderBookingList()">
+        <option value="ALL">顯示全部日期</option>
+      </select>
+    </div>
+
     <ul class="booking-list" id="booking-list">
       <li style="text-align:center; color:#57606a;">載入資料中...</li>
     </ul>
@@ -103,8 +117,8 @@
 <script>
   const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxgHeRHyODH2ZFzvCc4LpUwmq8OI7KzUxNDuN1P57Zw382nd1KGRu_f177lKiWHDIZgaA/exec";
 
-  // 儲存複選時段
   let selectedTimeSlots = [];
+  let rawGroupedBookings = []; // 全域儲存合併後的預約資料
 
   /**
    * 格式化日期字串：確保呈現 YYYY-MM-DD
@@ -113,7 +127,6 @@
     if (!rawDateStr) return '';
     const str = String(rawDateStr).trim();
     
-    // 如果是 YYYY-MM-DD 或 YYYY/MM/DD
     const match = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
     if (match) {
       const yyyy = match[1];
@@ -122,7 +135,6 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
-    // 若非標準格式，嘗試轉換 Date 物件
     const d = new Date(str);
     if (!isNaN(d.getTime())) {
       const yyyy = d.getFullYear();
@@ -197,7 +209,7 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
   }
 
-  // 讀取並合併預約清單
+  // 向 GAS 取得並重構資料
   function fetchBookings() {
     const listEl = document.getElementById('booking-list');
     const callbackName = 'handleGasResponse_' + Math.floor(Math.random() * 100000);
@@ -205,7 +217,6 @@
     window[callbackName] = function(data) {
       delete window[callbackName];
       document.body.removeChild(script);
-      listEl.innerHTML = "";
 
       if (!Array.isArray(data)) {
         listEl.innerHTML = "<li style='text-align:center;'>資料讀取異常</li>";
@@ -215,11 +226,13 @@
       const activeBookings = data.filter(item => item.status === '已預約');
 
       if (activeBookings.length === 0) {
-        listEl.innerHTML = "<li style='text-align:center; padding: 20px 0;'>目前尚無有效預約紀錄</li>";
+        rawGroupedBookings = [];
+        updateDateSelectOptions([]);
+        renderBookingList();
         return;
       }
 
-      // 按「日期 + 姓名」合併同天同人的預約
+      // 按「日期 + 姓名」進行分組合併
       const groupedMap = new Map();
 
       activeBookings.forEach(item => {
@@ -239,36 +252,17 @@
         });
       });
 
-      // 依日期倒序排列（近期的在上面）
-      const groupedList = Array.from(groupedMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+      // 轉為陣列並按【日期由新到舊 (近期在最上面)】排序
+      rawGroupedBookings = Array.from(groupedMap.values()).sort((a, b) => b.date.localeCompare(a.date));
 
-      groupedList.forEach(group => {
-        // 時段升序排列
-        group.slots.sort((a, b) => a.time.localeCompare(b.time));
+      // 收集所有出現過的有效日期（按近期排在前面）
+      const uniqueDates = [...new Set(rawGroupedBookings.map(item => item.date))].sort((a, b) => b.localeCompare(a));
 
-        // 生成標籤
-        const slotsHtml = group.slots.map(s => 
-          `<span class="time-tag">⏰ ${escapeHtml(s.time)} <small>(${escapeHtml(s.id)})</small></span>`
-        ).join('');
+      // 更新下拉選單
+      updateDateSelectOptions(uniqueDates);
 
-        const li = document.createElement('li');
-        li.className = 'booking-item';
-        li.innerHTML = `
-          <div style="flex: 1;">
-            <div class="booking-time-highlight">
-              📅 ${escapeHtml(group.date)}
-            </div>
-            <div class="booking-user-sub">
-              預約人：<strong>${escapeHtml(group.name)}</strong>
-            </div>
-            <div class="time-tag-list">
-              ${slotsHtml}
-            </div>
-          </div>
-          <span class="status-badge">已預約</span>
-        `;
-        listEl.appendChild(li);
-      });
+      // 渲染畫面
+      renderBookingList();
     };
 
     const script = document.createElement('script');
@@ -277,6 +271,74 @@
       listEl.innerHTML = "<li style='text-align:center; color:red; padding: 20px 0;'>資料載入失敗，請檢查網路連線。</li>";
     };
     document.body.appendChild(script);
+  }
+
+  // 更新日期下拉選單選項
+  function updateDateSelectOptions(dates) {
+    const selectEl = document.getElementById('filter-date');
+    const currentSelected = selectEl.value; // 保留當前選擇
+
+    selectEl.innerHTML = '<option value="ALL">顯示全部日期</option>';
+    
+    dates.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.innerText = d;
+      selectEl.appendChild(opt);
+    });
+
+    // 如果先前選取的日期還在選單中，維持選取狀態
+    if (dates.includes(currentSelected)) {
+      selectEl.value = currentSelected;
+    } else {
+      selectEl.value = 'ALL';
+    }
+  }
+
+  // 渲染/畫出右側清單 (包含篩選邏輯)
+  function renderBookingList() {
+    const listEl = document.getElementById('booking-list');
+    const selectedFilterDate = document.getElementById('filter-date').value;
+
+    listEl.innerHTML = "";
+
+    // 進行日期條件篩選
+    const filteredList = rawGroupedBookings.filter(item => {
+      if (selectedFilterDate === 'ALL') return true;
+      return item.date === selectedFilterDate;
+    });
+
+    if (filteredList.length === 0) {
+      listEl.innerHTML = "<li style='text-align:center; padding: 20px 0; color:#57606a;'>目前尚無符合條件的預約紀錄</li>";
+      return;
+    }
+
+    filteredList.forEach(group => {
+      // 該預約卡片內的時段，依時間升序排列（如 08:00 在 09:00 前面）
+      group.slots.sort((a, b) => a.time.localeCompare(b.time));
+
+      const slotsHtml = group.slots.map(s => 
+        `<span class="time-tag">⏰ ${escapeHtml(s.time)} <small>(${escapeHtml(s.id)})</small></span>`
+      ).join('');
+
+      const li = document.createElement('li');
+      li.className = 'booking-item';
+      li.innerHTML = `
+        <div style="flex: 1;">
+          <div class="booking-time-highlight">
+            📅 ${escapeHtml(group.date)}
+          </div>
+          <div class="booking-user-sub">
+            預約人：<strong>${escapeHtml(group.name)}</strong>
+          </div>
+          <div class="time-tag-list">
+            ${slotsHtml}
+          </div>
+        </div>
+        <span class="status-badge">已預約</span>
+      `;
+      listEl.appendChild(li);
+    });
   }
 
   // 送出預約
@@ -382,7 +444,7 @@
     return String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
-  // 初始化
+  // 初始化執行
   initDatePicker();
   generateTimeButtons();
   fetchBookings();
