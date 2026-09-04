@@ -22,12 +22,11 @@
     .filter-bar label { margin-bottom: 0; font-size: 0.85rem; color: #57606a; white-space: nowrap; }
     .filter-bar select { width: auto; flex: 1; max-width: 200px; padding: 6px 10px; }
 
-    /* 時段按鈕網格樣式 (支援複選) */
+    /* 時段按鈕網格樣式 */
     .time-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-top: 5px; }
     .time-btn { background-color: #ffffff; color: #24292f; border: 1px solid #d0d7de; padding: 8px 4px; font-size: 0.85rem; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.2s ease; position: relative; }
-    .time-btn:hover:not(:disabled) { background-color: #f3f4f6; border-color: #0969da; }
+    .time-btn:hover { background-color: #f3f4f6; border-color: #0969da; }
     .time-btn.selected { background-color: #0969da; color: #ffffff; border-color: #0969da; font-weight: 600; }
-    .time-btn:disabled { background-color: #f3f4f6; color: #8c959f; border-color: #d0d7de; cursor: not-allowed; opacity: 0.6; text-decoration: line-through; }
 
     /* 按鈕樣式 */
     .btn-submit { width: 100%; padding: 10px; font-size: 1rem; border: none; border-radius: 6px; background-color: #2da44e; color: white; font-weight: 600; cursor: pointer; margin-top: 10px; }
@@ -45,13 +44,17 @@
     .booking-list { list-style: none; max-height: 520px; overflow-y: auto; }
     .booking-item { background: #ffffff; border: 1px solid #d0d7de; border-left: 5px solid #0969da; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
     .booking-time-highlight { font-size: 1.1rem; font-weight: 700; color: #0969da; margin-bottom: 6px; }
-    .booking-user-sub { font-size: 0.9rem; color: #24292f; margin-bottom: 4px; }
-    .booking-unit-sub { font-size: 0.85rem; color: #57606a; margin-bottom: 8px; }
+    
+    /* 預約人與訪問單位水平排列樣式 */
+    .booking-info-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; font-size: 0.9rem; color: #24292f; margin-bottom: 8px; }
+    .booking-info-item { display: inline-flex; align-items: center; }
+
     .time-tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
     .time-tag { background-color: #ddf4ff; color: #0969da; font-size: 0.8rem; padding: 3px 8px; border-radius: 4px; border: 1px solid #54aeff; font-weight: 500; }
     .time-tag small { color: #57606a; font-size: 0.75rem; margin-left: 3px; }
     .status-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; background: #2da44e; color: white; font-weight: 600; white-space: nowrap; margin-left: 10px; }
     .hint-text { font-size: 0.8rem; color: #57606a; margin-top: 4px; font-weight: normal; }
+    .no-slots-msg { grid-column: 1 / -1; text-align: center; color: #cf222e; font-size: 0.85rem; padding: 10px; background: #ffebe9; border-radius: 6px; border: 1px solid #ffc1c0; }
   </style>
 </head>
 <body>
@@ -82,7 +85,7 @@
         </select>
       </div>
 
-      <!-- 新增：訪問單位欄位 -->
+      <!-- 訪問單位欄位 -->
       <div class="form-group">
         <label for="unit">訪問單位</label>
         <input type="text" id="unit" placeholder="例如：資訊處、研發部..." required>
@@ -93,7 +96,7 @@
         <input type="date" id="date" required onchange="generateTimeButtons()">
       </div>
       <div class="form-group">
-        <label>選擇時段 (08:00 - 22:00) <div class="hint-text">💡 可點選多個時段進行當日複選</div></label>
+        <label>選擇可預約時段 (08:00 - 22:00) <div class="hint-text">💡 已隱藏過期與已被預約時段</div></label>
         <div class="time-grid" id="time-grid"></div>
       </div>
       <button type="submit" class="btn-submit" id="btn-book">送出預約</button>
@@ -146,11 +149,9 @@
   const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxgHeRHyODH2ZFzvCc4LpUwmq8OI7KzUxNDuN1P57Zw382nd1KGRu_f177lKiWHDIZgaA/exec";
 
   let selectedTimeSlots = [];
-  let rawGroupedBookings = []; // 全域儲存合併後的預約資料
+  let rawGroupedBookings = [];
+  let bookedSlotsSet = new Set(); // 儲存已被預約的「日期_時段」
 
-  /**
-   * 格式化日期字串：確保呈現 YYYY-MM-DD
-   */
   function formatDateString(rawDateStr) {
     if (!rawDateStr) return '';
     const str = String(rawDateStr).trim();
@@ -174,7 +175,6 @@
     return str;
   }
 
-  // 初始化日期選擇器
   function initDatePicker() {
     const dateInput = document.getElementById('date');
     const today = new Date();
@@ -187,7 +187,6 @@
     dateInput.value = minDateStr;
   }
 
-  // 生成時段按鈕
   function generateTimeButtons() {
     const grid = document.getElementById('time-grid');
     grid.innerHTML = "";
@@ -200,35 +199,49 @@
     const isToday = selectedDateVal === todayStr;
     const currentHour = now.getHours();
 
+    let count = 0;
+
     for (let hour = 8; hour < 22; hour++) {
       const start = hour.toString().padStart(2, '0') + ":00";
       const end = (hour + 1).toString().padStart(2, '0') + ":00";
       const slot = `${start} - ${end}`;
-      
+      const slotKey = `${selectedDateVal}_${slot}`;
+
+      // 1. 若選擇今天且時間已過，則隱藏不顯示
+      if (isToday && hour <= currentHour) {
+        continue;
+      }
+
+      // 2. 若該時段已被預約，則隱藏不顯示
+      if (bookedSlotsSet.has(slotKey)) {
+        continue;
+      }
+
+      count++;
+
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'time-btn';
       btn.innerText = slot;
 
-      if (isToday && hour <= currentHour) {
-        btn.disabled = true;
-        btn.title = "此時段已過，無法預約";
-      } else {
-        btn.onclick = () => {
-          if (btn.classList.contains('selected')) {
-            btn.classList.remove('selected');
-            selectedTimeSlots = selectedTimeSlots.filter(s => s !== slot);
-          } else {
-            btn.classList.add('selected');
-            selectedTimeSlots.push(slot);
-          }
-        };
-      }
+      btn.onclick = () => {
+        if (btn.classList.contains('selected')) {
+          btn.classList.remove('selected');
+          selectedTimeSlots = selectedTimeSlots.filter(s => s !== slot);
+        } else {
+          btn.classList.add('selected');
+          selectedTimeSlots.push(slot);
+        }
+      };
+
       grid.appendChild(btn);
+    }
+
+    if (count === 0) {
+      grid.innerHTML = `<div class="no-slots-msg">⚠️ 該日期已無可預約的時段</div>`;
     }
   }
 
-  // 切換頁籤
   function switchForm(type) {
     const btns = document.querySelectorAll('.tab-btn');
     btns[0].classList.toggle('active', type === 'book');
@@ -237,7 +250,6 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
   }
 
-  // 向 GAS 取得並重構資料
   function fetchBookings() {
     const listEl = document.getElementById('booking-list');
     const callbackName = 'handleGasResponse_' + Math.floor(Math.random() * 100000);
@@ -253,20 +265,27 @@
 
       const activeBookings = data.filter(item => item.status === '已預約');
 
+      // 更新全域已預約集合
+      bookedSlotsSet.clear();
+      activeBookings.forEach(item => {
+        const cleanDate = formatDateString(item.date);
+        bookedSlotsSet.add(`${cleanDate}_${item.time}`);
+      });
+
       if (activeBookings.length === 0) {
         rawGroupedBookings = [];
         updateDateSelectOptions([]);
         renderBookingList();
+        generateTimeButtons();
         return;
       }
 
-      // 按「日期 + 姓名」進行分組合併
       const groupedMap = new Map();
 
       activeBookings.forEach(item => {
         const cleanDate = formatDateString(item.date);
         const groupKey = `${cleanDate}_${item.name}`;
-        const itemUnit = item.unit || item.department || ''; // 相容單位欄位名稱
+        const itemUnit = item.unit || item.department || '';
 
         if (!groupedMap.has(groupKey)) {
           groupedMap.set(groupKey, {
@@ -282,11 +301,9 @@
         });
       });
 
-      // 取得今天的日期字串 (YYYY-MM-DD)
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-      // 轉為陣列並排序（最近的日期在最前面）
       rawGroupedBookings = Array.from(groupedMap.values()).sort((a, b) => {
         const isAUpcoming = a.date >= todayStr;
         const isBUpcoming = b.date >= todayStr;
@@ -302,14 +319,10 @@
         }
       });
 
-      // 收集所有出現過的有效日期
       const uniqueDates = Array.from(new Set(rawGroupedBookings.map(item => item.date)));
-
-      // 更新下拉選單
       updateDateSelectOptions(uniqueDates);
-
-      // 渲染畫面
       renderBookingList();
+      generateTimeButtons(); // 重新整理按鈕，濾掉剛下載下來的已被預約時段
     };
 
     const script = document.createElement('script');
@@ -320,7 +333,6 @@
     document.body.appendChild(script);
   }
 
-  // 更新日期下拉選單選項
   function updateDateSelectOptions(dates) {
     const selectEl = document.getElementById('filter-date');
     const currentSelected = selectEl.value;
@@ -341,7 +353,6 @@
     }
   }
 
-  // 渲染/畫出右側清單
   function renderBookingList() {
     const listEl = document.getElementById('booking-list');
     const selectedFilterDate = document.getElementById('filter-date').value;
@@ -365,7 +376,9 @@
         `<span class="time-tag">⏰ ${escapeHtml(s.time)} <small>(${escapeHtml(s.id)})</small></span>`
       ).join('');
 
-      const unitText = group.unit ? ` (${escapeHtml(group.unit)})` : '';
+      const unitHtml = group.unit 
+        ? `<div class="booking-info-item">訪問單位：<strong>${escapeHtml(group.unit)}</strong></div>`
+        : '';
 
       const li = document.createElement('li');
       li.className = 'booking-item';
@@ -374,8 +387,11 @@
           <div class="booking-time-highlight">
             📅 ${escapeHtml(group.date)}
           </div>
-          <div class="booking-user-sub">
-            預約人：<strong>${escapeHtml(group.name)}</strong>${unitText}
+          <div class="booking-info-row">
+            <div class="booking-info-item">
+              預約人：<strong>${escapeHtml(group.name)}</strong>
+            </div>
+            ${unitHtml}
           </div>
           <div class="time-tag-list">
             ${slotsHtml}
@@ -387,7 +403,6 @@
     });
   }
 
-  // 送出預約
   document.getElementById('booking-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     if (selectedTimeSlots.length === 0) return alert("請至少點選一個欲預約的時段！");
@@ -408,7 +423,7 @@
       const payload = {
         action: "book",
         name: nameVal,
-        unit: unitVal, // 傳送單位資料
+        unit: unitVal,
         date: dateVal,
         time: slot
       };
@@ -441,7 +456,6 @@
       alert(msg);
       document.getElementById('booking-form').reset();
       initDatePicker();
-      generateTimeButtons();
       fetchBookings();
     } else {
       alert("預約失敗：\n" + failMessages.join("\n"));
@@ -451,7 +465,6 @@
     submitBtn.innerText = "送出預約";
   });
 
-  // 取消預約
   document.getElementById('cancel-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const submitBtn = document.getElementById('btn-cancel');
@@ -492,9 +505,7 @@
     return String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
-  // 初始化執行
   initDatePicker();
-  generateTimeButtons();
   fetchBookings();
 </script>
 
