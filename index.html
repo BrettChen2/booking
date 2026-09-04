@@ -38,11 +38,13 @@
     
     /* 右側即時清單樣式 */
     .booking-list { list-style: none; max-height: 520px; overflow-y: auto; }
-    .booking-item { background: #ffffff; border: 1px solid #d0d7de; border-left: 5px solid #0969da; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
-    .booking-time-highlight { font-size: 1.1rem; font-weight: 700; color: #0969da; margin-bottom: 4px; }
-    .booking-time-highlight span { font-size: 1rem; color: #24292f; margin-left: 6px; }
-    .booking-user-sub { font-size: 0.85rem; color: #57606a; }
-    .status-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; background: #2da44e; color: white; font-weight: 600; white-space: nowrap; }
+    .booking-item { background: #ffffff; border: 1px solid #d0d7de; border-left: 5px solid #0969da; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .booking-time-highlight { font-size: 1.1rem; font-weight: 700; color: #0969da; margin-bottom: 6px; }
+    .booking-user-sub { font-size: 0.9rem; color: #24292f; margin-bottom: 8px; }
+    .time-tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+    .time-tag { background-color: #ddf4ff; color: #0969da; font-size: 0.8rem; padding: 3px 8px; border-radius: 4px; border: 1px solid #54aeff; font-weight: 500; }
+    .time-tag small { color: #57606a; font-size: 0.75rem; margin-left: 3px; }
+    .status-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; background: #2da44e; color: white; font-weight: 600; white-space: nowrap; margin-left: 10px; }
     .hint-text { font-size: 0.8rem; color: #57606a; margin-top: 4px; font-weight: normal; }
   </style>
 </head>
@@ -104,7 +106,7 @@
   // 儲存複選時段
   let selectedTimeSlots = [];
 
-  // 整理日期格式 (把 T16:00:00.000Z 去除，只留 YYYY-MM-DD)
+  // 整理日期格式 (去除 ISO 時間後綴 T...)
   function formatDateString(rawDateStr) {
     if (!rawDateStr) return '';
     if (typeof rawDateStr === 'string' && rawDateStr.includes('T')) {
@@ -185,7 +187,7 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
   }
 
-  // 讀取預約清單
+  // 讀取預約清單 (同日同人合併呈現)
   function fetchBookings() {
     const listEl = document.getElementById('booking-list');
     const callbackName = 'handleGasResponse_' + Math.floor(Math.random() * 100000);
@@ -207,22 +209,53 @@
         return;
       }
 
-      activeBookings.slice().reverse().forEach(item => {
-        const cleanDate = formatDateString(item.date); // 自動去除 ISO 時間後綴
+      // 按「日期 + 姓名」進行分組合併
+      const groupedMap = new Map();
+
+      activeBookings.forEach(item => {
+        const cleanDate = formatDateString(item.date);
+        const groupKey = `${cleanDate}_${item.name}`;
+
+        if (!groupedMap.has(groupKey)) {
+          groupedMap.set(groupKey, {
+            date: cleanDate,
+            name: item.name,
+            slots: []
+          });
+        }
+        groupedMap.get(groupKey).slots.push({
+          time: item.time,
+          id: item.id
+        });
+      });
+
+      // 轉換成陣列並倒序排列（最新的在最上面）
+      const groupedList = Array.from(groupedMap.values()).reverse();
+
+      groupedList.forEach(group => {
+        // 時段依時間排序
+        group.slots.sort((a, b) => a.time.localeCompare(b.time));
+
+        // 產生多個時段的小標籤 HTML
+        const slotsHtml = group.slots.map(s => 
+          `<span class="time-tag">⏰ ${escapeHtml(s.time)} <small>(${escapeHtml(s.id)})</small></span>`
+        ).join('');
+
         const li = document.createElement('li');
         li.className = 'booking-item';
         li.innerHTML = `
-          <div>
+          <div style="flex: 1;">
             <div class="booking-time-highlight">
-              📅 ${escapeHtml(cleanDate)} <span>⏰ ${escapeHtml(item.time)}</span>
+              📅 ${escapeHtml(group.date)}
             </div>
             <div class="booking-user-sub">
-              預約人：<strong>${escapeHtml(item.name)}</strong> (編號: ${escapeHtml(item.id)})
+              預約人：<strong>${escapeHtml(group.name)}</strong>
+            </div>
+            <div class="time-tag-list">
+              ${slotsHtml}
             </div>
           </div>
-          <span class="status-badge">
-            ${escapeHtml(item.status)}
-          </span>
+          <span class="status-badge">已預約</span>
         `;
         listEl.appendChild(li);
       });
