@@ -36,12 +36,13 @@
     .tab-btn { flex: 1; background: #f3f4f6; color: #24292f; border: 1px solid #d0d7de; padding: 8px; cursor: pointer; font-weight: 500; border-radius: 6px; }
     .tab-btn.active { background: #0969da; color: white; border-color: #0969da; }
     
-    /* 右側即時清單樣式 */
+    /* 右側即時清單樣式 (強化日期與時段重點) */
     .booking-list { list-style: none; max-height: 520px; overflow-y: auto; }
-    .booking-item { background: #f6f8fa; border: 1px solid #e1e4e8; padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-    .booking-info { font-size: 0.9rem; }
-    .booking-info strong { font-size: 1rem; color: #0969da; }
-    .status-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: #2da44e; color: white; white-space: nowrap; }
+    .booking-item { background: #ffffff; border: 1px solid #d0d7de; border-left: 5px solid #0969da; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .booking-time-highlight { font-size: 1.1rem; font-weight: 700; color: #0969da; margin-bottom: 4px; }
+    .booking-time-highlight span { font-size: 1rem; color: #24292f; margin-left: 6px; }
+    .booking-user-sub { font-size: 0.85rem; color: #57606a; }
+    .status-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; background: #2da44e; color: white; font-weight: 600; white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -123,7 +124,6 @@
     const selectedDateVal = document.getElementById('date').value;
     const now = new Date();
     
-    // 取得今天 Date 物件 (時間設為 00:00:00)
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const isToday = selectedDateVal === todayStr;
     const currentHour = now.getHours();
@@ -138,7 +138,6 @@
       btn.className = 'time-btn';
       btn.innerText = slot;
 
-      // 如果選擇的是今天，且該時段的起始時間已過（小於或等於當前小時），則停用按鈕
       if (isToday && hour <= currentHour) {
         btn.disabled = true;
         btn.title = "此時段已過，無法預約";
@@ -163,7 +162,7 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
   }
 
-  // 讀取預約清單：僅顯示「已預約」（自動過濾掉「已取消」）
+  // 讀取預約清單：僅顯示「已預約」，且將日期與時段放大作為視覺重點
   function fetchBookings() {
     const listEl = document.getElementById('booking-list');
     const callbackName = 'handleGasResponse_' + Math.floor(Math.random() * 100000);
@@ -182,7 +181,7 @@
       const activeBookings = data.filter(item => item.status === '已預約');
 
       if (activeBookings.length === 0) {
-        listEl.innerHTML = "<li style='text-align:center;'>目前尚無有效預約紀錄</li>";
+        listEl.innerHTML = "<li style='text-align:center; padding: 20px 0;'>目前尚無有效預約紀錄</li>";
         return;
       }
 
@@ -191,9 +190,13 @@
         const li = document.createElement('li');
         li.className = 'booking-item';
         li.innerHTML = `
-          <div class="booking-info">
-            <strong>${escapeHtml(item.name)}</strong> (編號: ${escapeHtml(item.id)})<br>
-            <small style="color: #57606a;">${escapeHtml(item.date)} | ${escapeHtml(item.time)}</small>
+          <div>
+            <div class="booking-time-highlight">
+              📅 ${escapeHtml(item.date)} <span>⏰ ${escapeHtml(item.time)}</span>
+            </div>
+            <div class="booking-user-sub">
+              預約人：<strong>${escapeHtml(item.name)}</strong> (編號: ${escapeHtml(item.id)})
+            </div>
           </div>
           <span class="status-badge">
             ${escapeHtml(item.status)}
@@ -206,7 +209,7 @@
     const script = document.createElement('script');
     script.src = `${GAS_API_URL}?callback=${callbackName}`;
     script.onerror = function() {
-      listEl.innerHTML = "<li style='text-align:center; color:red;'>資料載入失敗，請檢查網路連線。</li>";
+      listEl.innerHTML = "<li style='text-align:center; color:red; padding: 20px 0;'>資料載入失敗，請檢查網路連線。</li>";
     };
     document.body.appendChild(script);
   }
