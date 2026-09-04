@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>線上預約系統</title>
+  
+  <!-- 引入 Flatpickr 樣式庫 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
     body { background-color: #f6f8fa; padding: 20px; color: #24292f; }
@@ -92,8 +96,8 @@
       </div>
 
       <div class="form-group">
-        <label for="date">預約日期 <span class="hint-text">(僅開放工作天，國定假日不開放)</span></label>
-        <input type="date" id="date" required onchange="handleDateChange()">
+        <label for="date">預約日期 <span class="hint-text">(六日與國定假日已停用無法點選)</span></label>
+        <input type="text" id="date" placeholder="請選擇預約日期" required readonly>
       </div>
       <div class="form-group">
         <label>選擇可預約時段 (08:00 - 22:00) <div class="hint-text">💡 已隱藏過期與已被預約時段</div></label>
@@ -145,15 +149,18 @@
   </div>
 </div>
 
+<!-- 引入 Flatpickr 主程式與繁體中文語系檔 -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh-tw.js"></script>
+
 <script>
   const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxgHeRHyODH2ZFzvCc4LpUwmq8OI7KzUxNDuN1P57Zw382nd1KGRu_f177lKiWHDIZgaA/exec";
 
   let selectedTimeSlots = [];
   let rawGroupedBookings = [];
   let bookedSlotsSet = new Set();
-  
-  // 台灣國定假日與補班日快取 (格式：{ '2026-01-01': { isHoliday: true, description: '元旦' } })
   let holidayMap = {};
+  let pickerInstance = null;
 
   function formatDateToString(d) {
     const yyyy = d.getFullYear();
@@ -182,88 +189,73 @@
     return str;
   }
 
-  // 載入台灣行政院人事行政總處行事曆 API
+  // 抓取台灣國定假日資料庫
   async function fetchTaiwanHolidays() {
     try {
       const currentYear = new Date().getFullYear();
-      // 使用開放社群維護的台灣國定假日 API (支援跨年份)
       const res = await fetch(`https://cdn.jsdelivr.net/gh/wanasit/taiwan-calendar/data/${currentYear}.json`);
       if (res.ok) {
         const data = await res.json();
         data.forEach(item => {
-          // 格式化日期為 YYYY-MM-DD
           const formattedDate = `${item.date.substring(0,4)}-${item.date.substring(4,6)}-${item.date.substring(6,8)}`;
           holidayMap[formattedDate] = {
             isHoliday: item.isHoliday,
-            description: item.description || (item.isHoliday ? '國定假日' : '補班日')
+            description: item.description
           };
         });
       }
     } catch (e) {
-      console.warn("國定假日 API 載入失敗，退回基本週六日判斷", e);
+      console.warn("國定假日 API 載入失敗，採用基本六日停用機制", e);
     }
   }
 
-  // 判斷某一天是否為「工作天/需上班日」
-  function isWorkday(dateObj) {
+  // 判斷日期是否應該被停用（禁用：True, 開放：False）
+  function isDateDisabled(dateObj) {
     const dateStr = formatDateToString(dateObj);
     const day = dateObj.getDay(); // 0 是週日, 6 是週六
 
     // 若 API 資料庫中有紀錄
     if (holidayMap[dateStr]) {
-      // isHoliday 為 false 代表是補班日（即便是六日也要上班）
-      // isHoliday 為 true 代表是放假（包含國定假日與彈性放假）
-      return !holidayMap[dateStr].isHoliday;
+      // isHoliday 為 true ➔ 國定假日/放假 ➔ 禁用
+      // isHoliday 為 false ➔ 補班日 ➔ 開放
+      return holidayMap[dateStr].isHoliday;
     }
 
-    // 若 API 無紀錄（例如非當年資料），退回預設：週一至週五為工作天
-    return day !== 0 && day !== 6;
+    // 若 API 無紀錄，預設週六與週日禁用
+    return (day === 0 || day === 6);
   }
 
-  // 自動找出下一個「可預約的工作天」
+  // 取得下一個可預約的工作天
   function getNextWorkingDay(dateObj) {
     const d = new Date(dateObj);
-    while (!isWorkday(d)) {
+    while (isDateDisabled(d)) {
       d.setDate(d.getDate() + 1);
     }
     return d;
   }
 
   async function initDatePicker() {
-    await fetchTaiwanHolidays(); // 先載入國定假日資料
+    await fetchTaiwanHolidays();
 
-    const dateInput = document.getElementById('date');
     const today = new Date();
-    
-    // 最小可選日期設為今天
-    dateInput.min = formatDateToString(today);
+    const defaultDate = getNextWorkingDay(today);
 
-    // 預設選擇日期若遇假日/國定假日則自動順延至下一個工作天
-    const validDefaultDate = getNextWorkingDay(today);
-    dateInput.value = formatDateToString(validDefaultDate);
-
-    generateTimeButtons();
-  }
-
-  // 當使用者變更日期時檢查是否為假日/國定假日
-  function handleDateChange() {
-    const dateInput = document.getElementById('date');
-    if (!dateInput.value) return;
-
-    const selectedDate = new Date(dateInput.value + "T00:00:00");
-    const dateStr = dateInput.value;
-
-    if (!isWorkday(selectedDate)) {
-      let holidayName = "例假日/國定假日";
-      if (holidayMap[dateStr] && holidayMap[dateStr].description) {
-        holidayName = holidayMap[dateStr].description;
+    // 初始化 Flatpickr 日曆套件
+    pickerInstance = flatpickr("#date", {
+      locale: "zh_tw",
+      dateFormat: "Y-m-d",
+      minDate: "today",
+      defaultDate: defaultDate,
+      disable: [
+        function(date) {
+          // 回傳 true 的日期將會在日曆上直接呈現灰色且無法點選
+          return isDateDisabled(date);
+        }
+      ],
+      onChange: function(selectedDates, dateStr) {
+        generateTimeButtons();
       }
-      
-      alert(`⚠️ 您選擇的日期 (${dateStr}) 為「${holidayName}」，不開放預約！\n已為您自動調整至下一個工作天。`);
-      
-      const nextWorkday = getNextWorkingDay(selectedDate);
-      dateInput.value = formatDateToString(nextWorkday);
-    }
+    });
 
     generateTimeButtons();
   }
@@ -274,8 +266,9 @@
     selectedTimeSlots = [];
     
     const selectedDateVal = document.getElementById('date').value;
+    if (!selectedDateVal) return;
+
     const now = new Date();
-    
     const todayStr = formatDateToString(now);
     const isToday = selectedDateVal === todayStr;
     const currentHour = now.getHours();
@@ -288,12 +281,10 @@
       const slot = `${start} - ${end}`;
       const slotKey = `${selectedDateVal}_${slot}`;
 
-      // 1. 若選擇今天且時間已過，則隱藏不顯示
       if (isToday && hour <= currentHour) {
         continue;
       }
 
-      // 2. 若該時段已被預約，則隱藏不顯示
       if (bookedSlotsSet.has(slotKey)) {
         continue;
       }
