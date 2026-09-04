@@ -15,9 +15,13 @@
         .time-btn.selected { background: #4CAF50; color: white; border-color: #4CAF50; }
         button { background: #007BFF; color: white; border: none; font-weight: bold; cursor: pointer; }
         button:hover { background: #0056b3; }
+        
+        /* 右側即時面板樣式優化 */
         .list-box { background: white; padding: 25px; border-radius: 12px; width: 100%; max-width: 380px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); box-sizing: border-box; text-align: left; }
         .list-title { font-weight: bold; font-size: 18px; margin-bottom: 15px; color: #333; border-bottom: 3px solid #007BFF; padding-bottom: 6px; }
-        .booking-item { padding: 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; font-size: 15px; align-items: center; }
+        .booking-group-title { font-weight: bold; font-size: 14px; color: #007BFF; background: #e6f7ff; padding: 4px 10px; border-radius: 4px; margin-top: 15px; margin-bottom: 5px; }
+        .booking-item { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; font-size: 14px; align-items: center; }
+        .booking-item:last-child { border-bottom: none; }
         .no-data { color: #999; text-align: center; padding: 30px; font-style: italic; font-size: 14px; }
     </style>
 </head>
@@ -58,7 +62,7 @@
 </div>
 
 <div class="list-box">
-    <div class="list-title">📋 當日預約清單狀況</div>
+    <div class="list-title">📋 尚未過期的預約清單</div>
     <div id="bookingList">
         <div class="no-data">正在載入預約面板...</div>
     </div>
@@ -68,7 +72,6 @@
     const GAS_URL = "https://google.com";
     const allSlots = ["09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "12:00 - 13:00", "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00", "17:00 - 18:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00"];
     
-    // 初始化本地模擬快取，確保按鈕跟清單絕對不會死當
     let bookedData = {};
     let selectedTime = "";
 
@@ -76,21 +79,22 @@
     const timeGrid = document.getElementById('timeGrid');
     const listContainer = document.getElementById('bookingList');
 
+    const todayStr = "2026-09-04";
+
     function renderUI() {
         const targetDate = dateInput.value;
         timeGrid.innerHTML = "";
         listContainer.innerHTML = "";
         selectedTime = "";
 
+        // 1. 渲染左側按鈕（受日期與當下時間限制）
         const currentDayBookings = bookedData[targetDate] || [];
         const busyTimes = currentDayBookings.map(b => b.time);
-        
-        // 2026年9月4日 限制過去時間 (取得當前本地小時)
         const currentHour = new Date().getHours();
 
         const freeTimes = allSlots.filter(slot => {
             if (busyTimes.includes(slot)) return false;
-            if (targetDate === "2026-09-04") {
+            if (targetDate === todayStr) {
                 const slotHour = parseInt(slot.substring(0, 2), 10);
                 if (slotHour <= currentHour) return false;
             }
@@ -113,22 +117,52 @@
             });
         }
 
-        if (currentDayBookings.length === 0) {
-            listContainer.innerHTML = '<div class="no-data">本日目前尚無任何預約紀錄 🍃</div>';
-        } else {
-            currentDayBookings.sort((a, b) => a.time.localeCompare(b.time));
-            currentDayBookings.forEach(item => {
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'booking-item';
-                itemDiv.innerHTML = `<span>⏰ ${item.time}</span><strong>👤 ${item.name}</strong>`;
-                listContainer.appendChild(itemDiv);
-            });
+        // 2. 新功能：渲染右側【尚未過期（大於等於今天）的所有清單】
+        // 篩選出所有大於等於今天的日期，並由小到大排序
+        const futureDates = Object.keys(bookedData)
+            .filter(d => d >= todayStr)
+            .sort();
+
+        let hasAnyFutureData = false;
+
+        futureDates.forEach(d => {
+            let dayBookings = bookedData[d] || [];
+            
+            // 如果是今天，過濾掉今天已經過去的時段
+            if (d === todayStr) {
+                dayBookings = dayBookings.filter(b => {
+                    const slotHour = parseInt(b.time.substring(0, 2), 10);
+                    return slotHour > currentHour;
+                });
+            }
+
+            if (dayBookings.length > 0) {
+                hasAnyFutureData = true;
+                
+                // 產生日期小標題
+                const groupTitle = document.createElement('div');
+                groupTitle.className = 'booking-group-title';
+                groupTitle.innerText = `📅 ${d}`;
+                listContainer.appendChild(groupTitle);
+
+                // 時段排序並加入清單
+                dayBookings.sort((a, b) => a.time.localeCompare(b.time));
+                dayBookings.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'booking-item';
+                    itemDiv.innerHTML = `<span>⏰ ${item.time}</span><strong>👤 ${item.name}</strong>`;
+                    listContainer.appendChild(itemDiv);
+                });
+            }
+        });
+
+        if (!hasAnyFutureData) {
+            listContainer.innerHTML = '<div class="no-data">目前沒有任何未來的預約紀錄 🍃</div>';
         }
     }
 
     function syncCloud() {
-        renderUI(); // 強制先繪製，保證按鈕跟右側清單絕對不卡死空白
-
+        renderUI();
         fetch(GAS_URL + "?t=" + new Date().getTime())
             .then(res => res.json())
             .then(data => {
@@ -144,43 +178,39 @@
 
     dateInput.addEventListener('change', renderUI);
 
-    // 預約提交表單（全新改版：前端先搶先判定成功、移除卡死的同步等待阻礙）
+    // 預約提交
     document.getElementById('bookingForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const name = document.getElementById('name').value.trim();
         const date = dateInput.value;
         if (!selectedTime) { alert("❌ 請先點選一個預約時段按鈕！"); return; }
 
-        // 1. 前端預先寫入本地紀錄（讓時段在畫面上立刻隱藏，右側立刻多出名字，完全不卡死等待）
         if (!bookedData[date]) { bookedData[date] = []; }
         bookedData[date].push({ name: name, time: selectedTime });
         
-        // 彈出預約成功
         alert(`🎉 預約成功！\n姓名：${name}\n日期：${date}\n時段：${selectedTime}`);
         
         const backupTime = selectedTime;
         document.getElementById('name').value = '';
         renderUI();
 
-        // 2. 將上傳資料放到背景偷偷執行，完美避開 Google 端的 CORS 攔截卡死錯誤
         fetch(GAS_URL, {
             method: "POST",
-            mode: "no-cors", // 啟用防跨域強制放行，保證順暢寫入 Excel 試算表！
+            mode: "no-cors",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "book", name: name, date: date, time: backupTime })
         }).then(() => {
-            setTimeout(syncCloud, 1000); // 1秒後悄悄刷新雲端核對
+            setTimeout(syncCloud, 1000);
         }).catch(() => syncCloud());
     });
 
-    // 取消提交表單（同樣改為背景隱形分離傳輸）
+    // 取消提交
     document.getElementById('cancelForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const name = document.getElementById('cName').value.trim();
         const date = dateInput.value; 
         const time = document.getElementById('cTime').value;
 
-        // 本地預先移除
         if (bookedData[date]) {
             bookedData[date] = bookedData[date].filter(b => !(b.name === name && b.time === time));
         }
@@ -190,16 +220,4 @@
 
         fetch(GAS_URL, {
             method: "POST",
-            mode: "no-cors", // 啟用防跨域強制放行
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "cancel", name: name, date: date, time: time })
-        }).then(() => {
-            setTimeout(syncCloud, 1000);
-        }).catch(() => syncCloud());
-    });
-
-    syncCloud();
-</script>
-
-</body>
-</html>
+            mode: "no-cors",
