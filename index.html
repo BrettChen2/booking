@@ -1,108 +1,8 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>線上預約系統</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
-    body { background-color: #f6f8fa; padding: 20px; color: #24292f; }
-    .container { max-width: 1100px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
-    .card { background: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 20px; box-shadow: 0 1px 3px rgba(27,31,36,0.04); }
-    .left-panel { flex: 1; min-width: 340px; }
-    .right-panel { flex: 1.2; min-width: 350px; }
-    h2 { font-size: 1.25rem; margin-bottom: 15px; border-bottom: 1px solid #d0d7de; padding-bottom: 8px; }
-    .form-group { margin-bottom: 15px; }
-    label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9rem; }
-    input { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #d0d7de; border-radius: 6px; }
-    input:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
-    
-    /* 時段按鈕網格樣式 */
-    .time-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-top: 5px; }
-    .time-btn { background-color: #ffffff; color: #24292f; border: 1px solid #d0d7de; padding: 8px 4px; font-size: 0.85rem; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.2s ease; }
-    .time-btn:hover { background-color: #f3f4f6; border-color: #0969da; }
-    .time-btn.selected { background-color: #0969da; color: #ffffff; border-color: #0969da; font-weight: 600; }
-
-    /* 按鈕樣式 */
-    .btn-submit { width: 100%; padding: 10px; font-size: 1rem; border: none; border-radius: 6px; background-color: #2da44e; color: white; font-weight: 600; cursor: pointer; margin-top: 10px; }
-    .btn-submit:hover { background-color: #2c974b; }
-    .btn-submit:disabled { background-color: #94d3a2; cursor: not-allowed; }
-    .btn-cancel { background-color: #cf222e; }
-    .btn-cancel:hover { background-color: #a40e26; }
-    
-    /* 頁籤樣式 */
-    .tab-buttons { display: flex; gap: 10px; margin-bottom: 15px; }
-    .tab-btn { flex: 1; background: #f3f4f6; color: #24292f; border: 1px solid #d0d7de; padding: 8px; cursor: pointer; font-weight: 500; border-radius: 6px; }
-    .tab-btn.active { background: #0969da; color: white; border-color: #0969da; }
-    
-    /* 右側即時清單樣式 */
-    .booking-list { list-style: none; max-height: 520px; overflow-y: auto; }
-    .booking-item { background: #f6f8fa; border: 1px solid #e1e4e8; padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
-    .booking-info { font-size: 0.9rem; }
-    .booking-info strong { font-size: 1rem; color: #0969da; }
-    .status-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: #2da44e; color: white; white-space: nowrap; }
-    .status-badge.cancelled { background: #8c959f; }
-  </style>
-</head>
-<body>
-
-<div class="container">
-  <!-- 左側：預約與取消表單 -->
-  <div class="left-panel card">
-    <div class="tab-buttons">
-      <button class="tab-btn active" onclick="switchForm('book')">新增預約</button>
-      <button class="tab-btn" onclick="switchForm('cancel')">取消預約</button>
-    </div>
-
-    <!-- 預約表單 -->
-    <form id="booking-form">
-      <h2>線上預約申請</h2>
-      <div class="form-group">
-        <label for="name">姓名 / 稱呼</label>
-        <input type="text" id="name" required placeholder="請輸入姓名">
-      </div>
-      <div class="form-group">
-        <label for="date">預約日期</label>
-        <input type="date" id="date" required>
-      </div>
-      <div class="form-group">
-        <label>選擇時段 (08:00 - 22:00)</label>
-        <div class="time-grid" id="time-grid"></div>
-      </div>
-      <button type="submit" class="btn-submit" id="btn-book">送出預約</button>
-    </form>
-
-    <!-- 取消表單 -->
-    <form id="cancel-form" style="display: none;">
-      <h2>取消預約</h2>
-      <div class="form-group">
-        <label for="cancel-id">預約編號</label>
-        <input type="text" id="cancel-id" required placeholder="請輸入預約編號">
-      </div>
-      <div class="form-group">
-        <label for="cancel-name">預約姓名驗證</label>
-        <input type="text" id="cancel-name" required placeholder="輸入預約時的姓名">
-      </div>
-      <button type="submit" class="btn-submit btn-cancel" id="btn-cancel">確認取消預約</button>
-    </form>
-  </div>
-
-  <!-- 右側：即時預約清單 -->
-  <div class="right-panel card">
-    <h2>即時預約狀態清單</h2>
-    <ul class="booking-list" id="booking-list">
-      <li style="text-align:center; color:#57606a;">載入資料中...</li>
-    </ul>
-  </div>
-</div>
-
 <script>
-  // 已填入您的 Google Apps Script URL
   const GAS_API_URL = "https://script.google.com/macros/s/AKfycbwPuq7IE4Xd8giaTBE3O0Moj1Bwqs7QrQ383yMcav14RapgFH37CY_Weuk5hSTaA8HZ2A/exec";
 
   let selectedTimeSlot = "";
 
-  // 產生 08:00 到 22:00 的時段按鈕
   function generateTimeButtons() {
     const grid = document.getElementById('time-grid');
     grid.innerHTML = "";
@@ -123,7 +23,6 @@
     }
   }
 
-  // 切換頁籤 (新增 / 取消)
   function switchForm(type) {
     const btns = document.querySelectorAll('.tab-btn');
     btns[0].classList.toggle('active', type === 'book');
@@ -132,11 +31,11 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
   }
 
-  // 取得右側即時預約資料
+  // 取得右側即時預約清單
   async function fetchBookings() {
     const listEl = document.getElementById('booking-list');
     try {
-      const res = await fetch(GAS_API_URL);
+      const res = await fetch(GAS_API_URL, { redirect: 'follow' });
       const data = await res.json();
       listEl.innerHTML = "";
 
@@ -145,14 +44,13 @@
         return;
       }
 
-      // 倒序排列（最新的預約顯示在最上面）
       data.slice().reverse().forEach(item => {
         const isCancelled = item.status === '已取消';
         const li = document.createElement('li');
         li.className = 'booking-item';
         li.innerHTML = `
           <div class="booking-info">
-            <strong>${escapeHtml(item.name)}</strong> (編號: ${item.id})<br>
+            <strong>${escapeHtml(item.name)}</strong> (編號: ${escapeHtml(item.id)})<br>
             <small style="color: #57606a;">${escapeHtml(item.date)} | ${escapeHtml(item.time)}</small>
           </div>
           <span class="status-badge ${isCancelled ? 'cancelled' : ''}">
@@ -162,11 +60,12 @@
         listEl.appendChild(li);
       });
     } catch (err) {
-      listEl.innerHTML = "<li style='text-align:center; color:red;'>資料載入失敗，請確認 Google Apps Script 權限。</li>";
+      console.error(err);
+      listEl.innerHTML = "<li style='text-align:center; color:red;'>資料載入失敗，請確認 GAS 是否已設為「所有人」存取。</li>";
     }
   }
 
-  // 送出預約處理
+  // 送出預約
   document.getElementById('booking-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     if (!selectedTimeSlot) return alert("請點選欲預約的時段按鈕！");
@@ -185,7 +84,9 @@
     try {
       const res = await fetch(GAS_API_URL, {
         method: "POST",
-        body: JSON.stringify(payload)
+        headers: { "Content-Type": "text/plain;charset=utf-8" }, // 避免觸發預檢跨域預先請求 (Preflight CORS)
+        body: JSON.stringify(payload),
+        redirect: 'follow'
       });
       const result = await res.json();
       
@@ -196,7 +97,7 @@
         document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
         fetchBookings();
       } else {
-        alert("預約未成功，請再試一次。");
+        alert("預約未成功：" + (result.message || "請再試一次。"));
       }
     } catch (err) {
       alert("傳送失敗，請稍後再試。");
@@ -206,7 +107,7 @@
     }
   });
 
-  // 取消預約處理
+  // 取消預約
   document.getElementById('cancel-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const submitBtn = document.getElementById('btn-cancel');
@@ -222,7 +123,9 @@
     try {
       const res = await fetch(GAS_API_URL, {
         method: "POST",
-        body: JSON.stringify(payload)
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+        redirect: 'follow'
       });
       const result = await res.json();
       
@@ -242,13 +145,9 @@
   });
 
   function escapeHtml(str) {
-    return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+    return String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
-  // 初始化執行
   generateTimeButtons();
   fetchBookings();
 </script>
-
-</body>
-</html>
