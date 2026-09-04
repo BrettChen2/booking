@@ -77,7 +77,6 @@
 </div>
 
 <script>
-    // 已經幫你自動換上你最正確的正式版 /exec 網址了！
     const GAS_URL = "https://google.com";
 
     const allSlots = ["09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "12:00 - 13:00", "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00", "17:00 - 18:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00"];
@@ -89,12 +88,14 @@
     const listContainer = document.getElementById('bookingList');
     const mask = document.getElementById('mask');
 
-    // 預設日期初始化設定（今天）
+    // 取得當前的即時本地時間 (相容 2026 年)
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+    
+    // 【防呆1】：限制日期輸入框「最低只能選今天」，禁止選取過去的日期
     dateInput.value = todayStr;
+    dateInput.min = todayStr;
 
-    // 清洗日期格式相容
     function getCleanDate(str) {
         if(!str) return "";
         let s = String(str);
@@ -111,10 +112,25 @@
         const currentDayBookings = bookedData[targetDate] || [];
         const busyTimes = currentDayBookings.map(b => b.time);
         
-        // 1. 產生左側「尚未被約」的時段按鈕
-        const freeTimes = allSlots.filter(s => !busyTimes.includes(s));
+        // 取得目前的小時數，用來比對當天過去的時間
+        const currentHour = new Date().getHours();
+
+        // 1. 篩選：同時剔除「已被預約」及「今天已過去的小時」
+        const freeTimes = allSlots.filter(slot => {
+            // 檢查是否已被雲端約走
+            if (busyTimes.includes(slot)) return false;
+
+            // 【防呆2】：如果是選擇今天，比對時段開頭的整點，小於等於當前小時就隱藏
+            if (targetDate === todayStr) {
+                const slotStartHour = parseInt(slot.split(':')[0]);
+                if (slotStartHour <= currentHour) return false; 
+            }
+            return true;
+        });
+
+        // 產生左側可用按鈕
         if (freeTimes.length === 0) {
-            timeGrid.innerHTML = `<div style="grid-column:span 2; color:#ff4d4f; font-weight:bold; padding:10px;">本日預約已全數滿額 😥</div>`;
+            timeGrid.innerHTML = `<div style="grid-column:span 2; color:#ff4d4f; font-weight:bold; padding:10px;">本日已無可預約時段 😥</div>`;
         } else {
             freeTimes.forEach(slot => {
                 const btn = document.createElement('div');
@@ -129,11 +145,10 @@
             });
         }
 
-        // 2. 產生右側「即時預約清單」面版內容
+        // 2. 產生右側「即時預約清單」
         if (currentDayBookings.length === 0) {
             listContainer.innerHTML = '<div class="no-data">本日目前尚無任何預約紀錄 🍃</div>';
         } else {
-            // 依據時間先後排序
             currentDayBookings.sort((a, b) => a.time.localeCompare(b.time));
             currentDayBookings.forEach(item => {
                 const itemDiv = document.createElement('div');
@@ -144,10 +159,8 @@
         }
     }
 
-    // 與 Google 雲端雙向同步最新數據
     function syncCloud() {
         mask.style.display = "flex";
-        // 強制先長出基礎 UI 防止畫面卡住空白
         renderUI();
 
         fetch(GAS_URL + "?t=" + new Date().getTime())
@@ -166,7 +179,7 @@
 
     dateInput.addEventListener('change', renderUI);
 
-    // 處理：預約表單提交送出
+    // 預約表單提交
     document.getElementById('bookingForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const name = document.getElementById('name').value.trim();
@@ -193,11 +206,11 @@
         });
     });
 
-    // 處理：取消表單提交送出
+    // 取消表單提交
     document.getElementById('cancelForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const name = document.getElementById('cName').value.trim();
-        const date = dateInput.value; // 取消日期連動左側日期，防呆最安全
+        const date = dateInput.value; 
         const time = document.getElementById('cTime').value;
 
         mask.style.display = "flex";
@@ -207,13 +220,3 @@
         })
         .then(res => res.json())
         .then(resData => {
-            if(resData.status === "success") {
-                alert(`✅ 已成功取消預約！\n姓名：${name}\n日期：${date}\n時段：${time}`);
-                document.getElementById('cName').value = '';
-                syncCloud();
-            } else {
-                alert("❌ 取消失敗：" + resData.message);
-                mask.style.display = "none";
-            }
-        })
-        .catch(err => {
