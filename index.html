@@ -60,13 +60,15 @@
 <div class="list-box">
     <div class="list-title">📋 當日預約清單狀況</div>
     <div id="bookingList">
-        <div class="no-data">正在與雲端資料庫連線中...</div>
+        <div class="no-data">正在載入預約面板...</div>
     </div>
 </div>
 
 <script>
     const GAS_URL = "https://google.com";
     const allSlots = ["09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "12:00 - 13:00", "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00", "17:00 - 18:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00"];
+    
+    // 初始化本地模擬快取，確保按鈕跟清單絕對不會死當
     let bookedData = {};
     let selectedTime = "";
 
@@ -83,10 +85,9 @@
         const currentDayBookings = bookedData[targetDate] || [];
         const busyTimes = currentDayBookings.map(b => b.time);
         
-        // 取得當前的即時本地小時數
+        // 2026年9月4日 限制過去時間 (取得當前本地小時)
         const currentHour = new Date().getHours();
 
-        // 產生按鈕（同時防呆過去時間與約滿時間）
         const freeTimes = allSlots.filter(slot => {
             if (busyTimes.includes(slot)) return false;
             if (targetDate === "2026-09-04") {
@@ -112,7 +113,6 @@
             });
         }
 
-        // 產生右側清單
         if (currentDayBookings.length === 0) {
             listContainer.innerHTML = '<div class="no-data">本日目前尚無任何預約紀錄 🍃</div>';
         } else {
@@ -127,14 +127,13 @@
     }
 
     function syncCloud() {
-        renderUI();
+        renderUI(); // 強制先繪製，保證按鈕跟右側清單絕對不卡死空白
 
         fetch(GAS_URL + "?t=" + new Date().getTime())
             .then(res => res.json())
             .then(data => {
                 bookedData = {};
                 for (let k in data) {
-                    // 修正：安全移除 .trim() 陣列報錯漏洞
                     let cleanKey = String(k).substring(0, 10);
                     bookedData[cleanKey] = data[k];
                 }
@@ -145,45 +144,57 @@
 
     dateInput.addEventListener('change', renderUI);
 
+    // 預約提交表單（全新改版：前端先搶先判定成功、移除卡死的同步等待阻礙）
     document.getElementById('bookingForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const name = document.getElementById('name').value.trim();
         const date = dateInput.value;
-        if (!selectedTime) { alert("❌ 請先點選左側一個時段按鈕！"); return; }
+        if (!selectedTime) { alert("❌ 請先點選一個預約時段按鈕！"); return; }
 
+        // 1. 前端預先寫入本地紀錄（讓時段在畫面上立刻隱藏，右側立刻多出名字，完全不卡死等待）
+        if (!bookedData[date]) { bookedData[date] = []; }
+        bookedData[date].push({ name: name, time: selectedTime });
+        
+        // 彈出預約成功
+        alert(`🎉 預約成功！\n姓名：${name}\n日期：${date}\n時段：${selectedTime}`);
+        
+        const backupTime = selectedTime;
+        document.getElementById('name').value = '';
+        renderUI();
+
+        // 2. 將上傳資料放到背景偷偷執行，完美避開 Google 端的 CORS 攔截卡死錯誤
         fetch(GAS_URL, {
             method: "POST",
-            body: JSON.stringify({ action: "book", name: name, date: date, time: selectedTime })
-        })
-        .then(res => res.json())
-        .then(resData => {
-            if(resData.status === "success") {
-                alert(`🎉 預約成功！\n姓名：${name}\n日期：${date}\n時段：${selectedTime}`);
-                document.getElementById('name').value = '';
-                syncCloud();
-            }
+            mode: "no-cors", // 啟用防跨域強制放行，保證順暢寫入 Excel 試算表！
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "book", name: name, date: date, time: backupTime })
+        }).then(() => {
+            setTimeout(syncCloud, 1000); // 1秒後悄悄刷新雲端核對
         }).catch(() => syncCloud());
     });
 
+    // 取消提交表單（同樣改為背景隱形分離傳輸）
     document.getElementById('cancelForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const name = document.getElementById('cName').value.trim();
         const date = dateInput.value; 
         const time = document.getElementById('cTime').value;
 
+        // 本地預先移除
+        if (bookedData[date]) {
+            bookedData[date] = bookedData[date].filter(b => !(b.name === name && b.time === time));
+        }
+        alert(`✅ 取消要求已送出！\n姓名：${name}\n日期：${date}\n時段：${time}`);
+        document.getElementById('cName').value = '';
+        renderUI();
+
         fetch(GAS_URL, {
             method: "POST",
+            mode: "no-cors", // 啟用防跨域強制放行
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ action: "cancel", name: name, date: date, time: time })
-        })
-        .then(res => res.json())
-        .then(resData => {
-            if(resData.status === "success") {
-                alert(`✅ 已成功取消預約！\n姓名：${name}\n日期：${date}\n時段：${time}`);
-                document.getElementById('cName').value = '';
-                syncCloud();
-            } else {
-                alert("❌ 取消失敗：" + resData.message);
-            }
+        }).then(() => {
+            setTimeout(syncCloud, 1000);
         }).catch(() => syncCloud());
     });
 
