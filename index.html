@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>正聲嘉義台第一錄音室線上預約系統</title>
+  <title>線上預約系統</title>
   
   <!-- 引入 Flatpickr 樣式庫與主題 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -17,13 +17,30 @@
     .right-panel { flex: 1.2; min-width: 350px; }
     
     /* 區塊標題樣式 */
-    .section-title { font-size: 1.25rem; font-weight: 700; color: #24292f; margin-bottom: 12px; }
+    .section-title-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .section-title { font-size: 1.25rem; font-weight: 700; color: #24292f; }
     
+    /* 即時連線狀態標籤 */
+    .sync-badge { font-size: 0.75rem; background: #dafbe1; color: #1a7f37; border: 1px solid #4ac26b; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 4px; }
+    .sync-dot { width: 6px; height: 6px; background-color: #1a7f37; border-radius: 50%; display: inline-block; animation: pulse 2s infinite; }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+
     .form-group { margin-bottom: 15px; }
     label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9rem; }
     input, select { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #d0d7de; border-radius: 6px; background-color: #fff; }
     input:focus, select:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
     
+    /* 手動設定假日輸入框與按鈕組合 */
+    .holiday-input-group { display: flex; gap: 8px; margin-top: 5px; }
+    .holiday-input-group input { flex: 1; }
+    .btn-holiday { padding: 8px 12px; background-color: #6e7781; color: white; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; font-weight: 600; }
+    .btn-holiday:hover { background-color: #57606a; }
+
     /* Flatpickr 灰色反白停用樣式優化 */
     .flatpickr-day.flatpickr-disabled, 
     .flatpickr-day.flatpickr-disabled:hover {
@@ -36,7 +53,7 @@
     /* 清單頂部篩選列 */
     .filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 15px; background: #f6f8fa; padding: 10px 12px; border-radius: 6px; border: 1px solid #d0d7de; }
     .filter-bar label { margin-bottom: 0; font-size: 0.85rem; color: #57606a; white-space: nowrap; }
-    .filter-bar select { width: auto; flex: 1; max-width: 200px; padding: 6px 10px; }
+    .filter-bar select { width: auto; flex: 1; max-width: 220px; padding: 6px 10px; }
 
     /* 時段按鈕網格樣式 */
     .time-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-top: 5px; }
@@ -51,7 +68,7 @@
     .btn-cancel { background-color: #cf222e; }
     .btn-cancel:hover { background-color: #a40e26; }
     
-    /* 頁籤切換按鈕區塊 (左右平行) */
+    /* 頁籤切換按鈕區塊 */
     .tab-buttons { display: flex; gap: 10px; margin-top: 12px; margin-bottom: 20px; border-bottom: 1px solid #d0d7de; padding-bottom: 15px; }
     .tab-btn { flex: 1; background: #f3f4f6; color: #24292f; border: 1px solid #d0d7de; padding: 10px; cursor: pointer; font-weight: 600; border-radius: 6px; text-align: center; }
     .tab-btn.active { background: #0969da; color: white; border-color: #0969da; }
@@ -61,7 +78,6 @@
     .booking-item { background: #ffffff; border: 1px solid #d0d7de; border-left: 5px solid #0969da; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
     .booking-time-highlight { font-size: 1.1rem; font-weight: 700; color: #0969da; margin-bottom: 6px; }
     
-    /* 預約人與訪問單位水平排列樣式 */
     .booking-info-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; font-size: 0.9rem; color: #24292f; margin-bottom: 8px; }
     .booking-info-item { display: inline-flex; align-items: center; }
     .booking-id-tag { color: #57606a; font-size: 0.85rem; font-weight: normal; margin-left: 4px; }
@@ -82,7 +98,7 @@
 <div class="container">
   <!-- 左側：預約與取消表單區塊 -->
   <div class="left-panel card">
-    <div class="section-title" id="form-header-title">正聲嘉義台第一錄音室線上預約系統</div>
+    <div class="section-title" id="form-header-title">線上預約申請</div>
 
     <div class="tab-buttons">
       <button class="tab-btn active" id="tab-book" onclick="switchForm('book')">線上預約申請</button>
@@ -112,11 +128,21 @@
       </div>
 
       <div class="form-group">
-        <label for="date">預約日期 <span class="hint-text"> </span></label>
+        <label for="date">預約日期 <span class="hint-text">(六日與國定假日已停用無法點選)</span></label>
         <input type="text" id="date" placeholder="請選擇預約日期" required readonly>
       </div>
+
+      <!-- 手動動態新增國定假日欄位 -->
       <div class="form-group">
-        <label>選擇可預約時段 (08:00 - 22:00) <div class="hint-text"></div></label>
+        <label for="custom-holiday-input">手動新增國定假日 <span class="hint-text">(填入後自動停用該日預約)</span></label>
+        <div class="holiday-input-group">
+          <input type="text" id="custom-holiday-input" placeholder="格式如：YYYY-MM-DD (多筆請用逗號隔開)">
+          <button type="button" class="btn-holiday" onclick="addCustomHoliday()">新增為假日</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>選擇可預約時段 (08:00 - 22:00) <div class="hint-text">💡 已隱藏過期與已被預約時段</div></label>
         <div class="time-grid" id="time-grid"></div>
       </div>
       <button type="submit" class="btn-submit" id="btn-book">送出預約</button>
@@ -148,7 +174,10 @@
 
   <!-- 右側：即時預約清單 -->
   <div class="right-panel card">
-    <div class="section-title">預約狀態清單 (僅顯示有效預約)</div>
+    <div class="section-title-container">
+      <div class="section-title">預約狀態清單</div>
+      <div class="sync-badge"><span class="sync-dot"></span> 即時同步中</div>
+    </div>
     
     <div class="filter-bar">
       <label for="filter-date">🔍 篩選預約日期：</label>
@@ -165,7 +194,7 @@
 
 <!-- 頁尾宣告資訊 -->
 <footer>
-  -2026 正聲廣播公司嘉義廣播電台 製作 │ 感謝 Google Gemini 技術支援-
+  正聲廣播公司嘉義廣播電台 製作 ｜ Google Gemini 技術支援
 </footer>
 
 <!-- 引入 Flatpickr 主程式與繁體中文語系檔 -->
@@ -181,7 +210,12 @@
   let holidaySet = new Set();
   let workdaySet = new Set();
   let pickerInstance = null;
+  let isInitialLoad = true;
 
+  // 星期轉化對照表
+  const weekDaysMap = ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"];
+
+  // 預設國定假日清單
   const customHolidays = [
     "2025-01-01", "2025-01-27", "2025-01-28", "2025-01-29", "2025-01-30", "2025-01-31",
     "2025-02-28", "2025-04-03", "2025-04-04", "2025-05-01", "2025-05-30", "2025-09-28",
@@ -218,8 +252,53 @@
     return str;
   }
 
+  // 取得指定日期的星期字串 (例：星期一)
+  function getWeekDayString(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr.replace(/-/g, '/')); // 相容不同瀏覽器日期的解析
+    if (isNaN(d.getTime())) return '';
+    return weekDaysMap[d.getDay()];
+  }
+
   function initHolidayData() {
     customHolidays.forEach(date => holidaySet.add(date));
+  }
+
+  /* 手動新增國定假日處理邏輯 */
+  function addCustomHoliday() {
+    const inputEl = document.getElementById('custom-holiday-input');
+    const inputVal = inputEl.value.trim();
+
+    if (!inputVal) {
+      alert("請輸入有效的日期 (格式如: 2026-10-25)");
+      return;
+    }
+
+    const dates = inputVal.split(',').map(d => d.trim());
+    let addedCount = 0;
+
+    dates.forEach(rawDate => {
+      const cleanDate = formatDateString(rawDate);
+      if (cleanDate && cleanDate.length === 10) {
+        holidaySet.add(cleanDate);
+        addedCount++;
+      }
+    });
+
+    if (addedCount > 0) {
+      alert(`已成功新增 ${addedCount} 個國定假日！月曆已動態更新。`);
+      inputEl.value = '';
+
+      if (pickerInstance) {
+        const currentDate = document.getElementById('date').value;
+        const validNextDate = getNextWorkingDay(new Date(currentDate || new Date()));
+        pickerInstance.setDate(validNextDate, true);
+        pickerInstance.redraw();
+      }
+      generateTimeButtons();
+    } else {
+      alert("日期格式輸入不正確，請使用 YYYY-MM-DD 格式 (例如: 2026-10-25)");
+    }
   }
 
   function isDateDisabled(dateObj) {
@@ -256,6 +335,7 @@
         }
       ],
       onChange: function(selectedDates, dateStr) {
+        selectedTimeSlots = [];
         generateTimeButtons();
       }
     });
@@ -265,17 +345,20 @@
 
   function generateTimeButtons() {
     const grid = document.getElementById('time-grid');
-    grid.innerHTML = "";
-    selectedTimeSlots = [];
-    
     const selectedDateVal = document.getElementById('date').value;
     if (!selectedDateVal) return;
+
+    if (isDateDisabled(new Date(selectedDateVal))) {
+      grid.innerHTML = `<div class="no-slots-msg">⚠️ 該日期為國定假日 / 停用日，無法預約</div>`;
+      return;
+    }
 
     const now = new Date();
     const todayStr = formatDateToString(now);
     const isToday = selectedDateVal === todayStr;
     const currentHour = now.getHours();
 
+    grid.innerHTML = "";
     let count = 0;
 
     for (let hour = 8; hour < 22; hour++) {
@@ -292,6 +375,11 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'time-btn';
+      
+      if (selectedTimeSlots.includes(slot)) {
+        btn.classList.add('selected');
+      }
+      
       btn.innerText = slot;
 
       btn.onclick = () => {
@@ -321,22 +409,23 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
 
     if (type === 'book') {
-      titleEl.innerText = "正聲嘉義台一號錄音室線上預約系統";
+      titleEl.innerText = "線上預約申請";
     } else {
-      titleEl.innerText = "正聲嘉義台一號錄音室線上預約系統";
+      titleEl.innerText = "取消預約申請";
     }
   }
 
+  /* 背景即時抓取資料 */
   function fetchBookings() {
     const listEl = document.getElementById('booking-list');
     const callbackName = 'handleGasResponse_' + Math.floor(Math.random() * 100000);
     
     window[callbackName] = function(data) {
       delete window[callbackName];
-      document.body.removeChild(script);
+      if (script.parentNode) script.parentNode.removeChild(script);
 
       if (!Array.isArray(data)) {
-        listEl.innerHTML = "<li style='text-align:center;'>資料讀取異常</li>";
+        if (isInitialLoad) listEl.innerHTML = "<li style='text-align:center;'>資料讀取異常</li>";
         return;
       }
 
@@ -353,6 +442,7 @@
         updateDateSelectOptions([]);
         renderBookingList();
         generateTimeButtons();
+        isInitialLoad = false;
         return;
       }
 
@@ -365,7 +455,7 @@
 
         if (!groupedMap.has(groupKey)) {
           groupedMap.set(groupKey, {
-            id: item.id, // 取出該筆編號
+            id: item.id,
             date: cleanDate,
             name: item.name,
             unit: itemUnit,
@@ -392,12 +482,15 @@
       updateDateSelectOptions(uniqueDates);
       renderBookingList();
       generateTimeButtons();
+      isInitialLoad = false;
     };
 
     const script = document.createElement('script');
     script.src = `${GAS_API_URL}?callback=${callbackName}`;
     script.onerror = function() {
-      listEl.innerHTML = "<li style='text-align:center; color:red; padding: 20px 0;'>資料載入失敗，請檢查網路連線。</li>";
+      if (isInitialLoad) {
+        listEl.innerHTML = "<li style='text-align:center; color:red; padding: 20px 0;'>資料載入失敗，請檢查網路連線。</li>";
+      }
     };
     document.body.appendChild(script);
   }
@@ -410,8 +503,9 @@
     
     dates.forEach(d => {
       const opt = document.createElement('option');
+      const weekStr = getWeekDayString(d);
       opt.value = d;
-      opt.innerText = d;
+      opt.innerText = `${d} (${weekStr})`;
       selectEl.appendChild(opt);
     });
 
@@ -426,8 +520,6 @@
     const listEl = document.getElementById('booking-list');
     const selectedFilterDate = document.getElementById('filter-date').value;
 
-    listEl.innerHTML = "";
-
     const filteredList = rawGroupedBookings.filter(item => {
       if (selectedFilterDate === 'ALL') return true;
       return item.date === selectedFilterDate;
@@ -438,10 +530,12 @@
       return;
     }
 
+    listEl.innerHTML = "";
     filteredList.forEach(group => {
       group.slots.sort((a, b) => a.localeCompare(b));
 
-      // 產生單純的時間標籤
+      const weekStr = getWeekDayString(group.date);
+
       const slotsHtml = group.slots.map(time => 
         `<span class="time-tag">⏰ ${escapeHtml(time)}</span>`
       ).join('');
@@ -455,7 +549,7 @@
       li.innerHTML = `
         <div style="flex: 1;">
           <div class="booking-time-highlight">
-            📅 ${escapeHtml(group.date)}
+            📅 ${escapeHtml(group.date)} (${weekStr})
           </div>
           <div class="booking-info-row">
             <div class="booking-info-item">
@@ -525,6 +619,7 @@
         msg += "\n\n失敗項目：\n" + failMessages.join("\n");
       }
       alert(msg);
+      selectedTimeSlots = [];
       document.getElementById('booking-form').reset();
       initDatePicker();
       fetchBookings();
@@ -579,6 +674,9 @@
   // 初始化執行
   initDatePicker();
   fetchBookings();
+
+  // 設定每 10 秒自動背景同步最新預約資料 (10000 毫秒)
+  setInterval(fetchBookings, 10000);
 </script>
 
 </body>
