@@ -67,6 +67,7 @@
     .time-tag small { color: #57606a; font-size: 0.75rem; margin-left: 3px; }
     .status-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; background: #2da44e; color: white; font-weight: 600; white-space: nowrap; margin-left: 10px; }
     .hint-text { font-size: 0.8rem; color: #57606a; margin-top: 4px; font-weight: normal; }
+    .optional-tag { font-size: 0.8rem; color: #57606a; font-weight: normal; margin-left: 4px; }
     .no-slots-msg { grid-column: 1 / -1; text-align: center; color: #cf222e; font-size: 0.85rem; padding: 10px; background: #ffebe9; border-radius: 6px; border: 1px solid #ffc1c0; }
   </style>
 </head>
@@ -98,10 +99,10 @@
         </select>
       </div>
 
-      <!-- 訪問單位欄位 -->
+      <!-- 訪問單位欄位 (改為選填，移除 required) -->
       <div class="form-group">
-        <label for="unit">訪問單位</label>
-        <input type="text" id="unit" placeholder="例如：資訊處、研發部..." required>
+        <label for="unit">訪問單位 <span class="optional-tag">(選填)</span></label>
+        <input type="text" id="unit" placeholder="例如：資訊處、研發部 (無則可不填)">
       </div>
 
       <div class="form-group">
@@ -120,7 +121,7 @@
       <h2>取消預約</h2>
       <div class="form-group">
         <label for="cancel-id">預約編號</label>
-        <input type="text" id="cancel-id" required placeholder="請輸入預約編號">
+        <input type="text" id="cancel-id" required placeholder="請輸入 10 位數預約編號 (如: 2609041530)">
       </div>
       <div class="form-group">
         <label for="cancel-name">預約姓名驗證</label>
@@ -169,32 +170,17 @@
   let rawGroupedBookings = [];
   let bookedSlotsSet = new Set();
   let holidaySet = new Set();
-  let workdaySet = new Set(); // 補班日
+  let workdaySet = new Set();
   let pickerInstance = null;
 
-  // 1. 內建 2025~2026 國定假日清單（包含教師節、中秋節、國慶日等）
+  // 內建國定假日清單
   const customHolidays = [
-    // 2025 年國定假日
-    "2025-01-01", // 元旦
-    "2025-01-27", "2025-01-28", "2025-01-29", "2025-01-30", "2025-01-31", // 春節
-    "2025-02-28", // 228紀念日
-    "2025-04-03", "2025-04-04", // 兒童節/清明節
-    "2025-05-01", // 勞動節
-    "2025-05-30", // 端午節
-    "2025-09-28", // 教師節
-    "2025-10-06", // 中秋節
-    "2025-10-10", // 國慶日
-    
-    // 2026 年國定假日
-    "2026-01-01", // 元旦
-    "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20", // 春節
-    "2026-02-28", // 228紀念日
-    "2026-04-03", "2026-04-06", // 兒童/清明連假
-    "2026-05-01", // 勞動節
-    "2026-06-19", // 端午節
-    "2026-09-25", // 中秋節
-    "2026-09-28", // 教師節
-    "2026-10-10"  // 國慶日
+    "2025-01-01", "2025-01-27", "2025-01-28", "2025-01-29", "2025-01-30", "2025-01-31",
+    "2025-02-28", "2025-04-03", "2025-04-04", "2025-05-01", "2025-05-30", "2025-09-28",
+    "2025-10-06", "2025-10-10",
+    "2026-01-01", "2026-02-16", "2026-02-17", "2026-02-18", "2026-02-19", "2026-02-20",
+    "2026-02-28", "2026-04-03", "2026-04-06", "2026-05-01", "2026-06-19", "2026-09-25",
+    "2026-09-28", "2026-10-10"
   ];
 
   function formatDateToString(d) {
@@ -224,31 +210,19 @@
     return str;
   }
 
-  // 2. 初始化假日資料庫
   function initHolidayData() {
     customHolidays.forEach(date => holidaySet.add(date));
   }
 
-  // 3. 判斷日期是否需要停用（Disable）
   function isDateDisabled(dateObj) {
     const dateStr = formatDateToString(dateObj);
-    const day = dateObj.getDay(); // 0 是週日, 6 是週六
+    const day = dateObj.getDay();
 
-    // 如果是補班日 ➔ 開放點選
-    if (workdaySet.has(dateStr)) {
-      return false;
-    }
-
-    // 如果包含在國定假日清單內 ➔ 禁用
-    if (holidaySet.has(dateStr)) {
-      return true;
-    }
-
-    // 預設六日 ➔ 禁用
+    if (workdaySet.has(dateStr)) return false;
+    if (holidaySet.has(dateStr)) return true;
     return (day === 0 || day === 6);
   }
 
-  // 取得下一個可預約的工作天
   function getNextWorkingDay(dateObj) {
     const d = new Date(dateObj);
     while (isDateDisabled(d)) {
@@ -263,7 +237,6 @@
     const today = new Date();
     const defaultDate = getNextWorkingDay(today);
 
-    // 初始化 Flatpickr 日曆套件
     pickerInstance = flatpickr("#date", {
       locale: "zh_tw",
       dateFormat: "Y-m-d",
@@ -271,7 +244,6 @@
       defaultDate: defaultDate,
       disable: [
         function(date) {
-          // 回傳 true 的日期將會在日曆上直接反灰且無法選取
           return isDateDisabled(date);
         }
       ],
@@ -304,13 +276,8 @@
       const slot = `${start} - ${end}`;
       const slotKey = `${selectedDateVal}_${slot}`;
 
-      if (isToday && hour <= currentHour) {
-        continue;
-      }
-
-      if (bookedSlotsSet.has(slotKey)) {
-        continue;
-      }
+      if (isToday && hour <= currentHour) continue;
+      if (bookedSlotsSet.has(slotKey)) continue;
 
       count++;
 
@@ -402,15 +369,10 @@
         const isAUpcoming = a.date >= todayStr;
         const isBUpcoming = b.date >= todayStr;
 
-        if (isAUpcoming && isBUpcoming) {
-          return a.date.localeCompare(b.date);
-        } else if (isAUpcoming && !isBUpcoming) {
-          return -1;
-        } else if (!isAUpcoming && isBUpcoming) {
-          return 1;
-        } else {
-          return b.date.localeCompare(a.date);
-        }
+        if (isAUpcoming && isBUpcoming) return a.date.localeCompare(b.date);
+        if (isAUpcoming && !isBUpcoming) return -1;
+        if (!isAUpcoming && isBUpcoming) return 1;
+        return b.date.localeCompare(a.date);
       });
 
       const uniqueDates = Array.from(new Set(rawGroupedBookings.map(item => item.date)));
@@ -470,6 +432,7 @@
         `<span class="time-tag">⏰ ${escapeHtml(s.time)} <small>(${escapeHtml(s.id)})</small></span>`
       ).join('');
 
+      // 若沒填寫訪問單位則自動不顯示該項目
       const unitHtml = group.unit 
         ? `<div class="booking-info-item">訪問單位：<strong>${escapeHtml(group.unit)}</strong></div>`
         : '';
@@ -506,7 +469,7 @@
     submitBtn.innerText = `預約處理中 (共 ${selectedTimeSlots.length} 個時段)...`;
 
     const nameVal = document.getElementById('name').value;
-    const unitVal = document.getElementById('unit').value.trim();
+    const unitVal = document.getElementById('unit').value.trim(); // 可為空字串
     const dateVal = document.getElementById('date').value;
 
     let successCount = 0;
@@ -567,7 +530,7 @@
 
     const payload = {
       action: "cancel",
-      id: document.getElementById('cancel-id').value,
+      id: document.getElementById('cancel-id').value.trim(),
       name: document.getElementById('cancel-name').value
     };
 
