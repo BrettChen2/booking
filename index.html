@@ -177,8 +177,8 @@
 </div>
 
 <script>
-    // ⚠️ 請務必換成你的 GAS 網頁應用程式 URL
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/library/d/1vRxxRZzR7T1GapeECkLHapd_cvNFK32HlV0saQkeDODkfLp_2f1ccETX/3";
+    // ⚠️ 記得把下面的網址換成你的 Google Apps Script 網頁應用程式 URL
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwPuq7IE4Xd8giaTBE3O0Moj1Bwqs7QrQ383yMcav14RapgFH37CY_Weuk5hSTaA8HZ2A/exec";
 
     const allTimeSlots = [
         "09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00",
@@ -193,7 +193,7 @@
     const timeGrid = document.getElementById('timeGrid');
     const loadingOverlay = document.getElementById('loadingOverlay');
 
-    // 修正後的超防呆日期清洗器
+    // 完美修正後的日期清洗器（解決 split().trim() 的語法崩潰錯誤）
     function cleanDateStr(str) {
         if (!str) return "";
         return String(str).split('T')[0].trim();
@@ -242,8 +242,13 @@
     function fetchCloudData() {
         loadingOverlay.style.display = "flex";
         
-        // 預先強制產生空的按鈕，防止因為網路慢或沒回應而一片空白
+        // 【兜底機制】無論網路多慢，都先讓預設的 12 個按鈕顯示，拒絕空白！
         renderTimeSlots();
+
+        if (!GAS_WEB_APP_URL || GAS_WEB_APP_URL.includes("請把你的")) {
+            loadingOverlay.style.display = "none";
+            return;
+        }
 
         const cacheBuster = GAS_WEB_APP_URL + (GAS_WEB_APP_URL.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
         
@@ -257,12 +262,11 @@
                 for (let key in data) {
                     bookedData[cleanDateStr(key)] = data[key];
                 }
-                renderTimeSlots(); // 拿到雲端資料後重新整理遮蔽已被預約的時段
+                renderTimeSlots(); 
                 loadingOverlay.style.display = "none";
             })
             .catch(err => {
-                console.error("雲端同步異常，啟動離線暫存模式：", err);
-                // 就算失敗了，上面已經強制產生的按鈕依然留著供人操作
+                console.error("雲端連線失敗，自動切換至本機暫存模式：", err);
                 loadingOverlay.style.display = "none";
             });
     }
@@ -289,7 +293,3 @@
         .then(resData => {
             if(resData.status === "success") {
                 alert(`🎉 預約成功且已同步雲端！\n\n預約人：${name}\n日期：${date}\n時段：${selectedTime}`);
-                document.getElementById('name').value = '';
-                fetchCloudData();
-            } else {
-                alert("預約失敗：" + resData.message);
