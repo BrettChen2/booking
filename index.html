@@ -9,27 +9,60 @@
     body { background-color: #f6f8fa; padding: 20px; color: #24292f; }
     .container { max-width: 1100px; margin: 0 auto; display: flex; gap: 20px; flex-wrap: wrap; }
     .card { background: #ffffff; border: 1px solid #d0d7de; border-radius: 6px; padding: 20px; box-shadow: 0 1px 3px rgba(27,31,36,0.04); }
-    .left-panel { flex: 1; min-width: 320px; }
+    .left-panel { flex: 1; min-width: 340px; }
     .right-panel { flex: 1.2; min-width: 350px; }
     h2 { font-size: 1.25rem; margin-bottom: 15px; border-bottom: 1px solid #d0d7de; padding-bottom: 8px; }
     .form-group { margin-bottom: 15px; }
     label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.9rem; }
-    input, select, button { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #d0d7de; border-radius: 6px; }
-    input:focus, select:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
-    button { background-color: #2da44e; color: white; font-weight: 600; cursor: pointer; border: none; margin-top: 5px; }
-    button:hover { background-color: #2c974b; }
-    button.btn-cancel { background-color: #cf222e; }
-    button.btn-cancel:hover { background-color: #a40e26; }
+    input { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #d0d7de; border-radius: 6px; }
+    input:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
+    
+    /* 時段按鈕網格樣式 */
+    .time-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap: 8px;
+      margin-top: 5px;
+    }
+    .time-btn {
+      background-color: #ffffff;
+      color: #24292f;
+      border: 1px solid #d0d7de;
+      padding: 8px 4px;
+      font-size: 0.85rem;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s ease;
+    }
+    .time-btn:hover {
+      background-color: #f3f4f6;
+      border-color: #0969da;
+    }
+    .time-btn.selected {
+      background-color: #0969da;
+      color: #ffffff;
+      border-color: #0969da;
+      font-weight: 600;
+    }
+
+    /* 主要動作按鈕 */
+    .btn-submit { width: 100%; padding: 10px; font-size: 1rem; border: none; border-radius: 6px; background-color: #2da44e; color: white; font-weight: 600; cursor: pointer; margin-top: 10px; }
+    .btn-submit:hover { background-color: #2c974b; }
+    .btn-cancel { background-color: #cf222e; }
+    .btn-cancel:hover { background-color: #a40e26; }
+    
+    /* 頁籤按鈕 */
     .tab-buttons { display: flex; gap: 10px; margin-bottom: 15px; }
-    .tab-btn { background: #f3f4f6; color: #24292f; border: 1px solid #d0d7de; padding: 6px 12px; cursor: pointer; font-weight: 500; }
+    .tab-btn { flex: 1; background: #f3f4f6; color: #24292f; border: 1px solid #d0d7de; padding: 8px; cursor: pointer; font-weight: 500; border-radius: 6px; }
     .tab-btn.active { background: #0969da; color: white; border-color: #0969da; }
     
-    /* 預約清單樣式 */
-    .booking-list { list-style: none; max-height: 500px; overflow-y: auto; }
+    /* 右側預約清單樣式 */
+    .booking-list { list-style: none; max-height: 520px; overflow-y: auto; }
     .booking-item { background: #f6f8fa; border: 1px solid #e1e4e8; padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
     .booking-info { font-size: 0.9rem; }
     .booking-info strong { font-size: 1rem; color: #0969da; }
-    .status-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: #2da44e; color: white; }
+    .status-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: #2da44e; color: white; white-space: nowrap; }
     .status-badge.cancelled { background: #8c959f; }
     .notice { font-size: 0.8rem; color: #57606a; margin-top: 10px; }
   </style>
@@ -37,7 +70,7 @@
 <body>
 
 <div class="container">
-  <!-- 左側：功能操作面板 (預約與取消) -->
+  <!-- 左側：預約與取消操作區 -->
   <div class="left-panel card">
     <div class="tab-buttons">
       <button class="tab-btn active" onclick="switchForm('book')">新增預約</button>
@@ -56,16 +89,12 @@
         <input type="date" id="date" required>
       </div>
       <div class="form-group">
-        <label for="time">預約時段</label>
-        <select id="time" required>
-          <option value="">請選擇時段</option>
-          <option value="09:00 - 10:00">09:00 - 10:00</option>
-          <option value="10:00 - 11:00">10:00 - 11:00</option>
-          <option value="14:00 - 15:00">14:00 - 15:00</option>
-          <option value="15:00 - 16:00">15:00 - 16:00</option>
-        </select>
+        <label>選擇時段 (08:00 - 22:00)</label>
+        <div class="time-grid" id="time-grid">
+          <!-- 由 JavaScript 自動產生 08:00 ~ 22:00 時段按鈕 -->
+        </div>
       </div>
-      <button type="submit">送出預約</button>
+      <button type="submit" class="btn-submit">送出預約</button>
     </form>
 
     <!-- 取消預約表單 -->
@@ -73,13 +102,13 @@
       <h2>取消預約</h2>
       <div class="form-group">
         <label for="cancel-id">預約編號 (Issue ID)</label>
-        <input type="number" id="cancel-id" required placeholder="請輸入預約編號，例：12">
+        <input type="number" id="cancel-id" required placeholder="例如：12">
       </div>
       <div class="form-group">
         <label for="cancel-name">預約姓名驗證</label>
         <input type="text" id="cancel-name" required placeholder="輸入預約時的姓名">
       </div>
-      <button type="submit" class="btn-cancel">確認取消預約</button>
+      <button type="submit" class="btn-submit btn-cancel">確認取消預約</button>
     </form>
   </div>
 
@@ -89,17 +118,45 @@
     <ul class="booking-list" id="booking-list">
       <li style="text-align:center; color:#57606a;">載入預約資料中...</li>
     </ul>
-    <p class="notice">* 資料同步自 GitHub Issues，即時呈現最新預約動態。</p>
+    <p class="notice">* 資料即時讀取自 GitHub Issues。</p>
   </div>
 </div>
 
 <script>
   // -------------------------------------------------------------
-  // 請填入您的 GitHub 帳號與儲存庫名稱
+  // 請修改為您的 GitHub 帳號與 Repository 名稱
   // -------------------------------------------------------------
   const GITHUB_USER = "YOUR_GITHUB_USERNAME";
   const GITHUB_REPO = "YOUR_REPOSITORY_NAME";
   const API_URL = `https://api.github.com/repos/${GITHUB_USER}/${GITHUB_REPO}/issues`;
+
+  let selectedTimeSlot = "";
+
+  // 自動動態生成 08:00 到 22:00 的 hourly 時段按鈕
+  function generateTimeButtons() {
+    const grid = document.getElementById('time-grid');
+    grid.innerHTML = "";
+
+    for (let hour = 8; hour < 22; hour++) {
+      const start = hour.toString().padStart(2, '0') + ":00";
+      const end = (hour + 1).toString().padStart(2, '0') + ":00";
+      const timeSlotText = `${start} - ${end}`;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'time-btn';
+      btn.innerText = timeSlotText;
+      
+      btn.addEventListener('click', function() {
+        // 切換按鈕選取狀態
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedTimeSlot = timeSlotText;
+      });
+
+      grid.appendChild(btn);
+    }
+  }
 
   // 切換頁籤 (預約 / 取消)
   function switchForm(type) {
@@ -114,8 +171,7 @@
   async function fetchBookings() {
     const listEl = document.getElementById('booking-list');
     try {
-      // 取得開啓與關閉的 Issues (代表已預約與已取消)
-      const res = await fetch(`${API_URL}?state=all&per_page=20`);
+      const res = await fetch(`${API_URL}?state=all&per_page=30`);
       const issues = await res.json();
 
       listEl.innerHTML = "";
@@ -129,11 +185,10 @@
         const li = document.createElement('li');
         li.className = 'booking-item';
         
-        // 解析內文或標題呈現
         li.innerHTML = `
           <div class="booking-info">
             <strong>#${issue.number} ${escapeHtml(issue.title)}</strong><br>
-            <small style="color: #57606a;">內文：${escapeHtml(issue.body || '無細節')}</small>
+            <small style="color: #57606a;">詳情：${escapeHtml(issue.body || '無內容')}</small>
           </div>
           <span class="status-badge ${isClosed ? 'cancelled' : ''}">
             ${isClosed ? '已取消' : '已預約'}
@@ -146,42 +201,42 @@
     }
   }
 
-  // 送出預約 (建立 Issue)
+  // 送出預約處理
   document.getElementById('booking-form').addEventListener('submit', function(e) {
     e.preventDefault();
     const name = document.getElementById('name').value;
     const date = document.getElementById('date').value;
-    const time = document.getElementById('time').value;
 
-    const title = `預約：${name} - ${date} (${time})`;
-    const body = `姓名: ${name}\n日期: ${date}\n時段: ${time}`;
+    if (!selectedTimeSlot) {
+      alert("請選擇預約時段！");
+      return;
+    }
 
-    // 引導使用者透過 GitHub Issue 介面完成寫入 (避免在前端曝露 Token)
+    const title = `預約：${name} - ${date} (${selectedTimeSlot})`;
+    const body = `姓名: ${name}\n日期: ${date}\n時段: ${selectedTimeSlot}`;
+
     const issueUrl = `https://github.com/${GITHUB_USER}/${GITHUB_REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
     
-    alert("將引導您至 GitHub 確認並提交預約單。");
+    alert("將開啟 GitHub 頁面完成預約提交。");
     window.open(issueUrl, '_blank');
   });
 
-  // 取消預約 (關閉 Issue)
+  // 取消預約處理
   document.getElementById('cancel-form').addEventListener('submit', function(e) {
     e.preventDefault();
     const issueId = document.getElementById('cancel-id').value;
-    const name = document.getElementById('cancel-name').value;
-
-    // 引導使用者至該 Issue 進行 Close 操作
     const issueUrl = `https://github.com/${GITHUB_USER}/${GITHUB_REPO}/issues/${issueId}`;
     
-    alert(`將開啟預約單 #${issueId}，請點擊頁面下方的 "Close issue" 完成取消。`);
+    alert(`將開啟預約單 #${issueId}，點選頁面下方 "Close issue" 即可完成取消。`);
     window.open(issueUrl, '_blank');
   });
 
-  // HTML 轉義函數
   function escapeHtml(str) {
     return str.replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
-  // 初始化載入清單
+  // 初始化執行
+  generateTimeButtons();
   fetchBookings();
 </script>
 
