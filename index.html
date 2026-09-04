@@ -107,21 +107,23 @@
   let selectedTimeSlots = [];
 
   /**
-   * 精準格式化日期（解決 ISO UTC 時間差 & 格式多樣問題）
+   * 格式化日期字串：確保呈現 YYYY-MM-DD
    */
   function formatDateString(rawDateStr) {
     if (!rawDateStr) return '';
+    const str = String(rawDateStr).trim();
     
-    // 如果直接包含 YYYY-MM-DD 格式，先提取前段字串
-    if (typeof rawDateStr === 'string') {
-      const match = rawDateStr.match(/^(\d{4}[-/.]\d{1,2}[-/.]\d{1,2})/);
-      if (match) {
-        return match[1].replace(/[/.]/g, '-');
-      }
+    // 如果是 YYYY-MM-DD 或 YYYY/MM/DD
+    const match = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+    if (match) {
+      const yyyy = match[1];
+      const mm = match[2].padStart(2, '0');
+      const dd = match[3].padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
     }
 
-    // 若透過 Date 物件轉換，改用本地時間（Local Time）解析，避免 UTC -8 小時差
-    const d = new Date(rawDateStr);
+    // 若非標準格式，嘗試轉換 Date 物件
+    const d = new Date(str);
     if (!isNaN(d.getTime())) {
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -129,10 +131,10 @@
       return `${yyyy}-${mm}-${dd}`;
     }
 
-    return String(rawDateStr);
+    return str;
   }
 
-  // 初始化日期：預設今日與設定最小日期
+  // 初始化日期選擇器
   function initDatePicker() {
     const dateInput = document.getElementById('date');
     const today = new Date();
@@ -145,11 +147,11 @@
     dateInput.value = minDateStr;
   }
 
-  // 生成時段按鈕（支援點擊切換複選）
+  // 生成時段按鈕
   function generateTimeButtons() {
     const grid = document.getElementById('time-grid');
     grid.innerHTML = "";
-    selectedTimeSlots = []; // 清空已選時段
+    selectedTimeSlots = [];
     
     const selectedDateVal = document.getElementById('date').value;
     const now = new Date();
@@ -168,7 +170,6 @@
       btn.className = 'time-btn';
       btn.innerText = slot;
 
-      // 當日已過時段禁用
       if (isToday && hour <= currentHour) {
         btn.disabled = true;
         btn.title = "此時段已過，無法預約";
@@ -183,7 +184,6 @@
           }
         };
       }
-      
       grid.appendChild(btn);
     }
   }
@@ -197,7 +197,7 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
   }
 
-  // 讀取預約清單 (同日同人合併呈現)
+  // 讀取並合併預約清單
   function fetchBookings() {
     const listEl = document.getElementById('booking-list');
     const callbackName = 'handleGasResponse_' + Math.floor(Math.random() * 100000);
@@ -219,7 +219,7 @@
         return;
       }
 
-      // 按「日期 + 姓名」進行分組合併
+      // 按「日期 + 姓名」合併同天同人的預約
       const groupedMap = new Map();
 
       activeBookings.forEach(item => {
@@ -239,14 +239,14 @@
         });
       });
 
-      // 轉換成陣列並按日期排序（最新的在最上面）
+      // 依日期倒序排列（近期的在上面）
       const groupedList = Array.from(groupedMap.values()).sort((a, b) => b.date.localeCompare(a.date));
 
       groupedList.forEach(group => {
-        // 時段依時間排序
+        // 時段升序排列
         group.slots.sort((a, b) => a.time.localeCompare(b.time));
 
-        // 產生多個時段的小標籤 HTML
+        // 生成標籤
         const slotsHtml = group.slots.map(s => 
           `<span class="time-tag">⏰ ${escapeHtml(s.time)} <small>(${escapeHtml(s.id)})</small></span>`
         ).join('');
@@ -382,7 +382,7 @@
     return String(str || '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
   }
 
-  // 初始化執行
+  // 初始化
   initDatePicker();
   generateTimeButtons();
   fetchBookings();
