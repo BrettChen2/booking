@@ -82,10 +82,10 @@
 <div class="container">
   <!-- 左側：預約與取消表單區塊 -->
   <div class="left-panel card">
-    <div class="section-title" id="form-header-title">正聲嘉義台一號錄音室線上預約系統</div>
+    <div class="section-title" id="form-header-title">正聲嘉義台一號錄音室系統</div>
 
     <div class="tab-buttons">
-      <button class="tab-btn active" id="tab-book" onclick="switchForm('book')">線上預約申請</button>
+      <button class="tab-btn active" id="tab-book" onclick="switchForm('book')">申請</button>
       <button class="tab-btn" id="tab-cancel" onclick="switchForm('cancel')">取消預約申請</button>
     </div>
 
@@ -321,9 +321,9 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
 
     if (type === 'book') {
-      titleEl.innerText = "線上預約申請";
+      titleEl.innerText = "正聲嘉義台一號錄音室線上預約系統";
     } else {
-      titleEl.innerText = "取消預約申請";
+      titleEl.innerText = "正聲嘉義台一號錄音室線上預約系統";
     }
   }
 
