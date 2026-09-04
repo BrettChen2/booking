@@ -7,12 +7,11 @@
     <style>
         body { font-family: Arial, sans-serif; background: #f4f7f6; padding: 20px; text-align: center; }
         .box { background: white; padding: 20px; border-radius: 10px; max-width: 400px; margin: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-        input, button { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; font-size: 16px; }
-        .time-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 15px 0; }
-        .time-btn { padding: 12px; border: 2px solid #eee; border-radius: 6px; cursor: pointer; font-weight: bold; background: #fff; color: #555; text-align: center; }
+        input, select, button { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        .time-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .time-btn { padding: 10px; border: 2px solid #eee; border-radius: 5px; cursor: pointer; font-weight: bold; background: #fff; }
         .time-btn.selected { background: #4CAF50; color: white; border-color: #4CAF50; }
-        button { background: #007BFF; color: white; border: none; font-weight: bold; cursor: pointer; }
-        button:hover { background: #0056b3; }
+        button { background: #007BFF; color: white; border: none; font-size: 16px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -20,17 +19,39 @@
 <div class="box">
     <h2>📅 線上預約系統</h2>
     <form id="bookingForm">
-        <input type="text" id="name" required placeholder="請輸入您的姓名">
+        <input type="text" id="name" required placeholder="請輸入姓名">
         <input type="date" id="date" required>
-        <label style="font-weight:bold; display:block; margin: 15px 0 5px; text-align:left; color:#666;">請點選預約時段：</label>
+        <label style="font-weight:bold; display:block; margin: 10px 0 5px;">選擇時段：</label>
         <div class="time-grid" id="timeGrid"></div>
         <button type="submit">確認預約</button>
     </form>
+    <hr style="margin:20px 0; border:1px dashed #ccc;">
+    <h2>❌ 取消預約</h2>
+    <form id="cancelForm">
+        <input type="text" id="cName" required placeholder="原預約姓名">
+        <select id="cTime" required>
+            <option value="" disabled selected>選擇要取消的時段</option>
+            <option value="09:00 - 10:00">09:00 - 10:00</option>
+            <option value="10:00 - 11:00">10:00 - 11:00</option>
+            <option value="11:00 - 12:00">11:00 - 12:00</option>
+            <option value="12:00 - 13:00">12:00 - 13:00</option>
+            <option value="13:00 - 14:00">13:00 - 14:00</option>
+            <option value="14:00 - 15:00">14:00 - 15:00</option>
+            <option value="15:00 - 16:00">15:00 - 16:00</option>
+            <option value="16:00 - 17:00">16:00 - 17:00</option>
+            <option value="17:00 - 18:00">17:00 - 18:00</option>
+            <option value="18:00 - 19:00">18:00 - 19:00</option>
+            <option value="19:00 - 20:00">19:00 - 20:00</option>
+            <option value="20:00 - 21:00">20:00 - 21:00</option>
+        </select>
+        <button type="submit" style="background:#dc3545;">確認取消預約</button>
+    </form>
+
 </div>
 
 <script>
-    // 已經幫你自動換上你剛剛提供最正確的正式版 /exec 網址了！
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwPuq7IE4Xd8giaTBE3O0Moj1Bwqs7QrQ383yMcav14RapgFH37CY_Weuk5hSTaA8HZ2A/exec";
+    // ⚠️ 請把下面這行引號內的網址，換成你自己的 Google Apps Script 網頁應用程式 URL
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxJtiaS1LBZoFEnyZyAXH0VyCcR7ZuC4fc-dRW_IQ6T/dev";
 
     const allSlots = ["09:00 - 10:00", "10:00 - 11:00", "11:00 - 12:00", "12:00 - 13:00", "13:00 - 14:00", "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00", "17:00 - 18:00", "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00"];
     let selectedTime = "";
@@ -38,7 +59,7 @@
     // 預設日期為今天
     document.getElementById('date').valueAsDate = new Date();
 
-    // 100% 強制長出按鈕的函式
+    // 100% 成功長出按鈕的防卡死函式
     function showButtons() {
         const grid = document.getElementById('timeGrid');
         grid.innerHTML = "";
@@ -57,7 +78,7 @@
         });
     }
 
-    // 處理預約表單送出
+    // 處理表單送出
     document.getElementById('bookingForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const name = document.getElementById('name').value.trim();
@@ -75,19 +96,44 @@
                 alert(`🎉 預約成功！\n姓名：${name}\n日期：${date}\n時段：${selectedTime}`);
                 document.getElementById('name').value = '';
                 showButtons();
-            } else {
-                alert("預約失敗：" + resData.message);
             }
         })
         .catch(err => {
-            // 雲端連線緩衝提示
-            alert("預約指令已送出！請至 Google 試算表確認是否有成功寫入資料。");
-            document.getElementById('name').value = '';
-            showButtons();
+            alert("已送出預約（若長久沒回應，請去檢查 Google 試算表是否有增加資料）。");
         });
     });
 
     // 網頁一打開立刻執行長按鈕
+
+    // 處理取消表單送出
+    document.getElementById('cancelForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const name = document.getElementById('cName').value.trim();
+        const date = document.getElementById('date').value;
+        const time = document.getElementById('cTime').value;
+
+        fetch(GAS_URL, {
+            method: "POST",
+            body: JSON.stringify({ action: "cancel", name: name, date: date, time: time })
+        })
+        .then(res => res.json())
+        .then(resData => {
+            if(resData.status === "success") {
+                alert(`✅ 取消成功！\n姓名：${name}\n日期：${date}\n時段：${time}`);
+                document.getElementById('cName').value = '';
+                showButtons();
+            } else {
+                alert("❌ 取消失敗：" + resData.message);
+            }
+        })
+        .catch(err => {
+            alert("已送出取消指令！請至 Google 試算表確認狀態是否變更。");
+            document.getElementById('cName').value = '';
+            showButtons();
+        });
+    });
+
+
     showButtons();
 </script>
 
