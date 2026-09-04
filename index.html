@@ -17,9 +17,9 @@
     input { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #d0d7de; border-radius: 6px; }
     input:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
     
-    /* 時段按鈕網格樣式 */
+    /* 時段按鈕網格樣式 (支援複選) */
     .time-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; margin-top: 5px; }
-    .time-btn { background-color: #ffffff; color: #24292f; border: 1px solid #d0d7de; padding: 8px 4px; font-size: 0.85rem; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.2s ease; }
+    .time-btn { background-color: #ffffff; color: #24292f; border: 1px solid #d0d7de; padding: 8px 4px; font-size: 0.85rem; border-radius: 6px; cursor: pointer; text-align: center; transition: all 0.2s ease; position: relative; }
     .time-btn:hover:not(:disabled) { background-color: #f3f4f6; border-color: #0969da; }
     .time-btn.selected { background-color: #0969da; color: #ffffff; border-color: #0969da; font-weight: 600; }
     .time-btn:disabled { background-color: #f3f4f6; color: #8c959f; border-color: #d0d7de; cursor: not-allowed; opacity: 0.6; text-decoration: line-through; }
@@ -36,13 +36,13 @@
     .tab-btn { flex: 1; background: #f3f4f6; color: #24292f; border: 1px solid #d0d7de; padding: 8px; cursor: pointer; font-weight: 500; border-radius: 6px; }
     .tab-btn.active { background: #0969da; color: white; border-color: #0969da; }
     
-    /* 右側即時清單樣式 (強化日期與時段重點) */
+    /* 右側即時清單樣式 */
     .booking-list { list-style: none; max-height: 520px; overflow-y: auto; }
     .booking-item { background: #ffffff; border: 1px solid #d0d7de; border-left: 5px solid #0969da; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
     .booking-time-highlight { font-size: 1.1rem; font-weight: 700; color: #0969da; margin-bottom: 4px; }
-    .booking-time-highlight span { font-size: 1rem; color: #24292f; margin-left: 6px; }
     .booking-user-sub { font-size: 0.85rem; color: #57606a; }
     .status-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; background: #2da44e; color: white; font-weight: 600; white-space: nowrap; }
+    .hint-text { font-size: 0.8rem; color: #57606a; margin-top: 4px; font-weight: normal; }
   </style>
 </head>
 <body>
@@ -67,7 +67,7 @@
         <input type="date" id="date" required onchange="generateTimeButtons()">
       </div>
       <div class="form-group">
-        <label>選擇時段 (08:00 - 22:00)</label>
+        <label>選擇時段 (08:00 - 22:00) <div class="hint-text">💡 可點選多個時段進行當日複選</div></label>
         <div class="time-grid" id="time-grid"></div>
       </div>
       <button type="submit" class="btn-submit" id="btn-book">送出預約</button>
@@ -100,9 +100,10 @@
 <script>
   const GAS_API_URL = "https://script.google.com/macros/s/AKfycbxgHeRHyODH2ZFzvCc4LpUwmq8OI7KzUxNDuN1P57Zw382nd1KGRu_f177lKiWHDIZgaA/exec";
 
-  let selectedTimeSlot = "";
+  // 儲存複選時段
+  let selectedTimeSlots = [];
 
-  // 初始化日期輸入框：限制最小可選日期為今日，預設選擇今日
+  // 初始化日期：預設今日與設定最小日期
   function initDatePicker() {
     const dateInput = document.getElementById('date');
     const today = new Date();
@@ -115,11 +116,11 @@
     dateInput.value = minDateStr;
   }
 
-  // 生成時段按鈕，並停用過去的時間
+  // 生成時段按鈕（支援點擊切換複選）
   function generateTimeButtons() {
     const grid = document.getElementById('time-grid');
     grid.innerHTML = "";
-    selectedTimeSlot = "";
+    selectedTimeSlots = []; // 清空已選時段
     
     const selectedDateVal = document.getElementById('date').value;
     const now = new Date();
@@ -138,14 +139,21 @@
       btn.className = 'time-btn';
       btn.innerText = slot;
 
+      // 當日已過時段禁用
       if (isToday && hour <= currentHour) {
         btn.disabled = true;
         btn.title = "此時段已過，無法預約";
       } else {
         btn.onclick = () => {
-          document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
-          btn.classList.add('selected');
-          selectedTimeSlot = slot;
+          if (btn.classList.contains('selected')) {
+            // 已被選擇 -> 取消選擇
+            btn.classList.remove('selected');
+            selectedTimeSlots = selectedTimeSlots.filter(s => s !== slot);
+          } else {
+            // 未被選擇 -> 加入選擇
+            btn.classList.add('selected');
+            selectedTimeSlots.push(slot);
+          }
         };
       }
       
@@ -153,7 +161,7 @@
     }
   }
 
-  // 切換新增 / 取消頁籤
+  // 切換頁籤
   function switchForm(type) {
     const btns = document.querySelectorAll('.tab-btn');
     btns[0].classList.toggle('active', type === 'book');
@@ -162,7 +170,7 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
   }
 
-  // 讀取預約清單：僅顯示「已預約」，且將日期與時段放大作為視覺重點
+  // 讀取預約清單
   function fetchBookings() {
     const listEl = document.getElementById('booking-list');
     const callbackName = 'handleGasResponse_' + Math.floor(Math.random() * 100000);
@@ -177,7 +185,6 @@
         return;
       }
 
-      // 過濾出未取消的預約（狀態為「已預約」）
       const activeBookings = data.filter(item => item.status === '已預約');
 
       if (activeBookings.length === 0) {
@@ -185,14 +192,14 @@
         return;
       }
 
-      // 由新到舊排序顯示
       activeBookings.slice().reverse().forEach(item => {
         const li = document.createElement('li');
         li.className = 'booking-item';
+        // 此處已將時段 (item.time) 移除，僅顯示日期
         li.innerHTML = `
           <div>
             <div class="booking-time-highlight">
-              📅 ${escapeHtml(item.date)} <span>⏰ ${escapeHtml(item.time)}</span>
+              📅 ${escapeHtml(item.date)}
             </div>
             <div class="booking-user-sub">
               預約人：<strong>${escapeHtml(item.name)}</strong> (編號: ${escapeHtml(item.id)})
@@ -214,49 +221,71 @@
     document.body.appendChild(script);
   }
 
-  // 送出預約處理
+  // 送出預約 (支援多時段批次送出)
   document.getElementById('booking-form').addEventListener('submit', async function(e) {
     e.preventDefault();
-    if (!selectedTimeSlot) return alert("請點選欲預約的時段按鈕！");
+    if (selectedTimeSlots.length === 0) return alert("請至少點選一個欲預約的時段！");
 
     const submitBtn = document.getElementById('btn-book');
     submitBtn.disabled = true;
-    submitBtn.innerText = "預約處理中...";
+    submitBtn.innerText = `預約處理中 (共 ${selectedTimeSlots.length} 個時段)...`;
 
-    const payload = {
-      action: "book",
-      name: document.getElementById('name').value,
-      date: document.getElementById('date').value,
-      time: selectedTimeSlot
-    };
+    const nameVal = document.getElementById('name').value;
+    const dateVal = document.getElementById('date').value;
 
-    try {
-      const res = await fetch(GAS_API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify(payload),
-        redirect: 'follow'
-      });
-      const result = await res.json();
-      
-      if (result.result === "success") {
-        alert(`預約成功！\n您的預約編號為：${result.id}\n（請保留此編號以供後續取消驗證）`);
-        document.getElementById('booking-form').reset();
-        initDatePicker();
-        generateTimeButtons();
-        fetchBookings();
-      } else {
-        alert("預約未成功：" + (result.message || "請再試一次。"));
+    let successCount = 0;
+    let createdIds = [];
+    let failMessages = [];
+
+    // 依序發送預約請求
+    for (const slot of selectedTimeSlots) {
+      const payload = {
+        action: "book",
+        name: nameVal,
+        date: dateVal,
+        time: slot
+      };
+
+      try {
+        const res = await fetch(GAS_API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(payload),
+          redirect: 'follow'
+        });
+        const result = await res.json();
+        
+        if (result.result === "success") {
+          successCount++;
+          createdIds.push(`${slot} (編號: ${result.id})`);
+        } else {
+          failMessages.push(`${slot}: ${result.message || "失敗"}`);
+        }
+      } catch (err) {
+        failMessages.push(`${slot}: 連線錯誤`);
       }
-    } catch (err) {
-      alert("傳送失敗，請稍後再試。");
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.innerText = "送出預約";
     }
+
+    // 顯示結果訊息
+    if (successCount > 0) {
+      let msg = `成功預約 ${successCount} 個時段！\n\n預約細節：\n` + createdIds.join("\n");
+      if (failMessages.length > 0) {
+        msg += "\n\n失敗項目：\n" + failMessages.join("\n");
+      }
+      alert(msg);
+      document.getElementById('booking-form').reset();
+      initDatePicker();
+      generateTimeButtons();
+      fetchBookings();
+    } else {
+      alert("預約失敗：\n" + failMessages.join("\n"));
+    }
+
+    submitBtn.disabled = false;
+    submitBtn.innerText = "送出預約";
   });
 
-  // 取消預約處理
+  // 取消預約
   document.getElementById('cancel-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     const submitBtn = document.getElementById('btn-cancel');
