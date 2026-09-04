@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>線上預約系統</title>
+  <title>正聲嘉義台一錄線上預約系統</title>
   
   <!-- 引入 Flatpickr 樣式庫與主題 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -24,12 +24,6 @@
     input, select { width: 100%; padding: 8px 12px; font-size: 0.9rem; border: 1px solid #d0d7de; border-radius: 6px; background-color: #fff; }
     input:focus, select:focus { border-color: #0969da; outline: none; box-shadow: 0 0 0 3px rgba(9,105,218,0.3); }
     
-    /* 手動設定假日輸入框與按鈕組合 */
-    .holiday-input-group { display: flex; gap: 8px; margin-top: 5px; }
-    .holiday-input-group input { flex: 1; }
-    .btn-holiday { padding: 8px 12px; background-color: #6e7781; color: white; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; white-space: nowrap; font-weight: 600; }
-    .btn-holiday:hover { background-color: #57606a; }
-
     /* Flatpickr 灰色反白停用樣式優化 */
     .flatpickr-day.flatpickr-disabled, 
     .flatpickr-day.flatpickr-disabled:hover {
@@ -88,7 +82,7 @@
 <div class="container">
   <!-- 左側：預約與取消表單區塊 -->
   <div class="left-panel card">
-    <div class="section-title" id="form-header-title">線上預約申請</div>
+    <div class="section-title" id="form-header-title">正聲嘉義台一錄線上預約系統</div>
 
     <div class="tab-buttons">
       <button class="tab-btn active" id="tab-book" onclick="switchForm('book')">線上預約申請</button>
@@ -121,16 +115,6 @@
         <label for="date">預約日期 <span class="hint-text">(六日與國定假日已停用無法點選)</span></label>
         <input type="text" id="date" placeholder="請選擇預約日期" required readonly>
       </div>
-
-      <!-- 手動動態新增國定假日欄位 -->
-      <div class="form-group">
-        <label for="custom-holiday-input">手動新增國定假日 <span class="hint-text">(填入後自動停用該日預約)</span></label>
-        <div class="holiday-input-group">
-          <input type="text" id="custom-holiday-input" placeholder="格式如：YYYY-MM-DD (多筆請用逗號隔開)">
-          <button type="button" class="btn-holiday" onclick="addCustomHoliday()">新增為假日</button>
-        </div>
-      </div>
-
       <div class="form-group">
         <label>選擇可預約時段 (08:00 - 22:00) <div class="hint-text">💡 已隱藏過期與已被預約時段</div></label>
         <div class="time-grid" id="time-grid"></div>
@@ -198,7 +182,6 @@
   let workdaySet = new Set();
   let pickerInstance = null;
 
-  // 預設國定假日清單
   const customHolidays = [
     "2025-01-01", "2025-01-27", "2025-01-28", "2025-01-29", "2025-01-30", "2025-01-31",
     "2025-02-28", "2025-04-03", "2025-04-04", "2025-05-01", "2025-05-30", "2025-09-28",
@@ -237,44 +220,6 @@
 
   function initHolidayData() {
     customHolidays.forEach(date => holidaySet.add(date));
-  }
-
-  /* 手動新增國定假日處理邏輯 */
-  function addCustomHoliday() {
-    const inputEl = document.getElementById('custom-holiday-input');
-    const inputVal = inputEl.value.trim();
-
-    if (!inputVal) {
-      alert("請輸入有效的日期 (格式如: 2026-10-25)");
-      return;
-    }
-
-    const dates = inputVal.split(',').map(d => d.trim());
-    let addedCount = 0;
-
-    dates.forEach(rawDate => {
-      const cleanDate = formatDateString(rawDate);
-      if (cleanDate && cleanDate.length === 10) {
-        holidaySet.add(cleanDate);
-        addedCount++;
-      }
-    });
-
-    if (addedCount > 0) {
-      alert(`已成功新增 ${addedCount} 個國定假日！月曆已動態更新。`);
-      inputEl.value = '';
-
-      // 重新繪製月曆與時段按鈕
-      if (pickerInstance) {
-        const currentDate = document.getElementById('date').value;
-        const validNextDate = getNextWorkingDay(new Date(currentDate || new Date()));
-        pickerInstance.setDate(validNextDate, true);
-        pickerInstance.redraw();
-      }
-      generateTimeButtons();
-    } else {
-      alert("日期格式輸入不正確，請使用 YYYY-MM-DD 格式 (例如: 2026-10-25)");
-    }
   }
 
   function isDateDisabled(dateObj) {
@@ -325,12 +270,6 @@
     
     const selectedDateVal = document.getElementById('date').value;
     if (!selectedDateVal) return;
-
-    // 若選中的日期剛好手動被設為假日，直接顯示已無可預約時段
-    if (isDateDisabled(new Date(selectedDateVal))) {
-      grid.innerHTML = `<div class="no-slots-msg">⚠️ 該日期為國定假日 / 停用日，無法預約</div>`;
-      return;
-    }
 
     const now = new Date();
     const todayStr = formatDateToString(now);
@@ -426,7 +365,7 @@
 
         if (!groupedMap.has(groupKey)) {
           groupedMap.set(groupKey, {
-            id: item.id,
+            id: item.id, // 取出該筆編號
             date: cleanDate,
             name: item.name,
             unit: itemUnit,
@@ -502,6 +441,7 @@
     filteredList.forEach(group => {
       group.slots.sort((a, b) => a.localeCompare(b));
 
+      // 產生單純的時間標籤
       const slotsHtml = group.slots.map(time => 
         `<span class="time-tag">⏰ ${escapeHtml(time)}</span>`
       ).join('');
