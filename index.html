@@ -40,6 +40,7 @@
     .booking-list { list-style: none; max-height: 520px; overflow-y: auto; }
     .booking-item { background: #ffffff; border: 1px solid #d0d7de; border-left: 5px solid #0969da; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
     .booking-time-highlight { font-size: 1.1rem; font-weight: 700; color: #0969da; margin-bottom: 4px; }
+    .booking-time-highlight span { font-size: 1rem; color: #24292f; margin-left: 6px; }
     .booking-user-sub { font-size: 0.85rem; color: #57606a; }
     .status-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 12px; background: #2da44e; color: white; font-weight: 600; white-space: nowrap; }
     .hint-text { font-size: 0.8rem; color: #57606a; margin-top: 4px; font-weight: normal; }
@@ -103,6 +104,22 @@
   // 儲存複選時段
   let selectedTimeSlots = [];
 
+  // 整理日期格式 (把 T16:00:00.000Z 去除，只留 YYYY-MM-DD)
+  function formatDateString(rawDateStr) {
+    if (!rawDateStr) return '';
+    if (typeof rawDateStr === 'string' && rawDateStr.includes('T')) {
+      return rawDateStr.split('T')[0];
+    }
+    const d = new Date(rawDateStr);
+    if (!isNaN(d.getTime())) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return rawDateStr;
+  }
+
   // 初始化日期：預設今日與設定最小日期
   function initDatePicker() {
     const dateInput = document.getElementById('date');
@@ -146,11 +163,9 @@
       } else {
         btn.onclick = () => {
           if (btn.classList.contains('selected')) {
-            // 已被選擇 -> 取消選擇
             btn.classList.remove('selected');
             selectedTimeSlots = selectedTimeSlots.filter(s => s !== slot);
           } else {
-            // 未被選擇 -> 加入選擇
             btn.classList.add('selected');
             selectedTimeSlots.push(slot);
           }
@@ -193,13 +208,13 @@
       }
 
       activeBookings.slice().reverse().forEach(item => {
+        const cleanDate = formatDateString(item.date); // 自動去除 ISO 時間後綴
         const li = document.createElement('li');
         li.className = 'booking-item';
-        // 此處已將時段 (item.time) 移除，僅顯示日期
         li.innerHTML = `
           <div>
             <div class="booking-time-highlight">
-              📅 ${escapeHtml(item.date)}
+              📅 ${escapeHtml(cleanDate)} <span>⏰ ${escapeHtml(item.time)}</span>
             </div>
             <div class="booking-user-sub">
               預約人：<strong>${escapeHtml(item.name)}</strong> (編號: ${escapeHtml(item.id)})
@@ -221,7 +236,7 @@
     document.body.appendChild(script);
   }
 
-  // 送出預約 (支援多時段批次送出)
+  // 送出預約
   document.getElementById('booking-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     if (selectedTimeSlots.length === 0) return alert("請至少點選一個欲預約的時段！");
@@ -237,7 +252,6 @@
     let createdIds = [];
     let failMessages = [];
 
-    // 依序發送預約請求
     for (const slot of selectedTimeSlots) {
       const payload = {
         action: "book",
@@ -266,7 +280,6 @@
       }
     }
 
-    // 顯示結果訊息
     if (successCount > 0) {
       let msg = `成功預約 ${successCount} 個時段！\n\n預約細節：\n` + createdIds.join("\n");
       if (failMessages.length > 0) {
