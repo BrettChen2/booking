@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>線上預約系統</title>
+  <title>正聲嘉義台第一錄音室線上預約系統統</title>
   
   <!-- 引入 Flatpickr 樣式庫與主題 -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -92,7 +92,7 @@
 <div class="container">
   <!-- 左側：預約與取消表單區塊 -->
   <div class="left-panel card">
-    <div class="section-title" id="form-header-title">線上預約申請</div>
+    <div class="section-title" id="form-header-title">正聲嘉義台第一錄音室線上預約系統</div>
 
     <div class="tab-buttons">
       <button class="tab-btn active" id="tab-book" onclick="switchForm('book')">線上預約申請</button>
@@ -122,12 +122,12 @@
       </div>
 
       <div class="form-group">
-        <label for="date">預約日期 <span class="hint-text">(六日與國定假日已停用無法點選)</span></label>
+        <label for="date">預約日期 <span class="hint-text"></span></label>
         <input type="text" id="date" placeholder="請選擇預約日期" required readonly>
       </div>
 
       <div class="form-group">
-        <label>選擇可預約時段 (08:00 - 22:00) <div class="hint-text">💡 僅顯示目前尚可預約的時段按鈕</div></label>
+        <label>選擇可預約時段 (08:00 - 22:00) <div class="hint-text"> </div></label>
         <div class="time-grid" id="time-grid"></div>
       </div>
       <button type="submit" class="btn-submit" id="btn-book">送出預約</button>
@@ -296,12 +296,16 @@
     const selectedDateVal = document.getElementById('date').value;
     if (!selectedDateVal) return;
 
-    if (isDateDisabled(new Date(selectedDateVal.replace(/-/g, '/')))) {
+    if (isDateDisabled(new Date(selectedDateVal))) {
       grid.innerHTML = `<div class="no-slots-msg">⚠️ 該日期為國定假日 / 停用日，無法預約</div>`;
       return;
     }
 
     const now = new Date();
+    const todayStr = formatDateToString(now);
+    const isToday = selectedDateVal === todayStr;
+    const currentHour = now.getHours();
+
     grid.innerHTML = "";
     let count = 0;
 
@@ -311,13 +315,7 @@
       const slot = `${start} - ${end}`;
       const slotKey = `${selectedDateVal}_${slot}`;
 
-      // 解析該時段開始時間進行時間比對
-      const slotStartTime = new Date(`${selectedDateVal.replace(/-/g, '/')} ${start}`);
-
-      // 不顯示已經過去的時段 (開始時間 <= 當前時間)
-      if (slotStartTime <= now) continue;
-
-      // 不顯示已被預約的時段
+      if (isToday && hour <= currentHour) continue;
       if (bookedSlotsSet.has(slotKey)) continue;
 
       count++;
@@ -359,9 +357,9 @@
     document.getElementById('cancel-form').style.display = type === 'cancel' ? 'block' : 'none';
 
     if (type === 'book') {
-      titleEl.innerText = "線上預約申請";
+      titleEl.innerText = "正聲嘉義台第一錄音室線上預約系統";
     } else {
-      titleEl.innerText = "取消預約申請";
+      titleEl.innerText = "正聲嘉義台第一錄音室線上預約系統";
     }
   }
 
